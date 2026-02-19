@@ -212,6 +212,10 @@ namespace ShipPlanetProjector
             PlanetDisplay.Create(planetModels, hologramParent, ModHelper.Console);
         }
 
+        // Credit to MegaPiggy for the cloning and showProxy method, which allows us to clone the proxy bodies so they
+        // can be used as holograms in the ship.
+        // The Clone and showProxy functons are from AdvancedMinimap.cs file in the General Enhancements mod:
+        // https://github.com/MegaPiggy/SBtT.GeneralEnhancements/
         void Clone(ref GameObject field, ProxyBody toClone)
         {
             toClone.gameObject.SetActive(false);
