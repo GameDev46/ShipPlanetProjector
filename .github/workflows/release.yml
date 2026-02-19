@@ -63,16 +63,16 @@ jobs:
               run: if (Test-Path ${{ env.PROJ_NAME }}/${{ env.PROJ_NAME }}.csproj.user) { rm ${{ env.PROJ_NAME }}/${{ env.PROJ_NAME }}.csproj.user }
 
             - name: Build Mod
-              run: dotnet build ${{ env.PROJ_NAME }} -c Release
-
+              run: dotnet build ./${{ env.PROJ_NAME }}/${{ env.PROJ_NAME }}.csproj -c Release
+            
             - name: Upload Artifact
-              uses: "actions/upload-artifact@v4"
+              uses: actions/upload-artifact@v4
               with:
                 name: "${{ env.PROJ_USERNAME }}.${{ env.PROJ_NAME }}"
-                path: "${{ env.PROJ_NAME }}/Build/net48"
-
+                path: "${{ env.PROJ_NAME }}/bin/Release"
+            
             - name: Zip For Release
-              run: 7z a ${{ env.PROJ_USERNAME }}.${{ env.PROJ_NAME }}.zip ./${{ env.PROJ_NAME }}/Build/net48/**
+              run: 7z a ${{ env.PROJ_USERNAME }}.${{ env.PROJ_NAME }}.zip ./${{ env.PROJ_NAME }}/bin/Release/**
 
             - name: Create Release
               uses: "ncipollo/release-action@v1"
