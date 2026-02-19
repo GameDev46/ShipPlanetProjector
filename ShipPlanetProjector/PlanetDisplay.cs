@@ -802,6 +802,18 @@ namespace ShipPlanetProjector
             playerShipModel.transform.localPosition = planetBody.transform.InverseTransformPoint(shipTransform.position);
             playerShipModel.transform.localRotation = planetBody.transform.InverseTransformRotation(shipTransform.rotation);
             playerShipModel.transform.localScale = new Vector3(6.0f, 6.0f, 6.0f);
+
+            // Only display the ship if the holomap is powered
+            if (displayPowered && planetBody.activeInHierarchy)
+            {
+                playerShipModel.SetActive(true);
+                shipModelIndicator.SetActive(true);
+            }
+            else
+            {
+                playerShipModel.SetActive(false);
+                shipModelIndicator.SetActive(false);
+            }
         }
 
         private IEnumerator AnimateShipIndicator()
