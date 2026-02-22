@@ -33,7 +33,7 @@ namespace ShipPlanetProjector
         GameObject ashTwinSand;
         GameObject emberTwinSand;
 
-        GameObject nameFocusTextObj;
+        GameObject mapModeObj;
 
         GameObject playerShipModel;
         Transform shipTransform;
@@ -126,7 +126,7 @@ namespace ShipPlanetProjector
 
                 actualPlanets["The Sun"] = GameObject.Find("Sun_Body");
 
-                nameFocusTextObj = GameObject.Find("Ship_Body/Module_Cabin/Systems_Cabin/ShipLogPivot/ShipLog/ShipLogPivot/ShipLogCanvas/MapMode/NamePanelRoot/Name");
+                mapModeObj = GameObject.Find("Ship_Body/Module_Cabin/Systems_Cabin/ShipLogPivot/ShipLog/ShipLogPivot/ShipLogCanvas/MapMode");
             }
             catch
             {
@@ -299,21 +299,30 @@ namespace ShipPlanetProjector
         {
             if (planetModels != null)
             {
-                // Get the focused planet
-                string focusedPlanet = nameFocusTextObj.GetComponent<Text>().text;
+                ShipLogMapMode shipLogMode = mapModeObj.GetComponent<ShipLogMapMode>();
 
-                // Ember and Ash twins are grouped together
-                if (focusedPlanet == "Ember Twin" || focusedPlanet == "Ash Twin") focusedPlanet = "Twins";
+                int selectedPlanetIndex = shipLogMode._objIndex;
+                int selectedPlanetRow = shipLogMode._rowIndex;
 
-                // Moons still cause the focus to be on their parent
-                if (focusedPlanet == "The Attlerock") focusedPlanet = "Timber Hearth";
-                if (focusedPlanet == "Hollow's Lantern") focusedPlanet = "Brittle Hollow";
+                // Get the focused planet (Assume Timber Hearth)
+                string focusedPlanet = "Timber Hearth";
 
-                // Orbital probe cannon still causes focus on Giant's Deep
-                if (focusedPlanet == "Orbital Probe Cannon") focusedPlanet = "Giant's Deep";
+                if (selectedPlanetIndex == 0 && selectedPlanetRow == 1) focusedPlanet = "Twins";            // Ash Twin
+                if (selectedPlanetIndex == 1 && selectedPlanetRow == 1) focusedPlanet = "Timber Hearth";    // Attlerock
+                if (selectedPlanetIndex == 2 && selectedPlanetRow == 1) focusedPlanet = "Brittle Hollow";   // Hollow's Lantern
+                if (selectedPlanetIndex == 3 && selectedPlanetRow == 1) focusedPlanet = "Giant's Deep";     // Orbital Probe Cannon
 
-                // Orbital probe cannon still causes focus on Giant's Deep
-                if (focusedPlanet == "Sun Station") focusedPlanet = "The Sun";
+                if (selectedPlanetIndex == 0 && selectedPlanetRow == 2) focusedPlanet = "The Sun";
+                if (selectedPlanetIndex == 1 && selectedPlanetRow == 2) focusedPlanet = "Twins";            // Ember Twin
+                if (selectedPlanetIndex == 2 && selectedPlanetRow == 2) focusedPlanet = "Timber Hearth";
+                if (selectedPlanetIndex == 3 && selectedPlanetRow == 2) focusedPlanet = "Brittle Hollow";
+                if (selectedPlanetIndex == 4 && selectedPlanetRow == 2) focusedPlanet = "Giant's Deep";
+                if (selectedPlanetIndex == 5 && selectedPlanetRow == 2) focusedPlanet = "Dark Bramble";
+                if (selectedPlanetIndex == 6 && selectedPlanetRow == 2) focusedPlanet = "White Hole";
+                if (selectedPlanetIndex == 7 && selectedPlanetRow == 2) focusedPlanet = "The Interloper";
+
+                if (selectedPlanetIndex == 0 && selectedPlanetRow == 3) focusedPlanet = "Timber Hearth";    // Stranger - implement later
+                if (selectedPlanetIndex == 1 && selectedPlanetRow == 3) focusedPlanet = "Quantum Moon";
 
                 // Check that the focused planet is valid
                 bool validPlanetName = false;
