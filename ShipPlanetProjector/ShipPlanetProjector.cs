@@ -1,18 +1,18 @@
-﻿using System.Collections.Generic;
-using System.Reflection;
+﻿using Epic.OnlineServices;
 using HarmonyLib;
 using OWML.Common;
 using OWML.ModHelper;
-using UnityEngine;
-using UnityEngine.Tilemaps;
-
-using System;
-using System.Collections;
-using System.Linq;
-using UnityEngine.SceneManagement;
 using OWML.Utils;
 using Steamworks;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 namespace ShipPlanetProjector
 {
@@ -67,7 +67,7 @@ namespace ShipPlanetProjector
             if (planetDisplay == null) return;
 
             bool atmospheresEnabled = config.GetSettingsValue<string>("planetAtmospheres") == "Enabled";
-            bool cometTrailsEnabled = config.GetSettingsValue<string>("cometEffects") == "Enabled";
+            bool cometTrailsEnabled = config.GetSettingsValue<string>("interloperEffects") == "Enabled";
 
             planetDisplay.UpdateSettings(atmospheresEnabled, cometTrailsEnabled);
         }
@@ -223,6 +223,12 @@ namespace ShipPlanetProjector
 
             // Call the planet display manager to setup the actual display
             planetDisplay = PlanetDisplay.Create(planetModels, hologramParent, ModHelper.Console);
+
+            // Apply the current config settings
+            bool atmospheresEnabled = ModHelper.Config.GetSettingsValue<string>("planetAtmospheres") == "Enabled";
+            bool cometTrailsEnabled = ModHelper.Config.GetSettingsValue<string>("interloperEffects") == "Enabled";
+
+            planetDisplay.UpdateSettings(atmospheresEnabled, cometTrailsEnabled);
         }
 
         // Credit to MegaPiggy for the cloning and showProxy method, which allows us to clone the proxy bodies so they

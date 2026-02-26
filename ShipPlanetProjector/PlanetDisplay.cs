@@ -72,9 +72,11 @@ namespace ShipPlanetProjector
 
         public void Start()
         {
+            // Get the ship's cockpit module
             shipTransform = Locator.GetShipTransform();
             var shipCockpit = shipTransform.Find("Module_Cockpit/Lights_Cockpit");
 
+            // Create the power switch for the hologram display
             var displayPowerSwitch = new GameObject("HoloMap Power");
             displayPowerSwitch.layer = LayerMask.NameToLayer("Interactible");
 
@@ -94,10 +96,12 @@ namespace ShipPlanetProjector
             powerReciever.ChangePrompt("Toggle On HoloMap");
             powerReciever.OnPressInteract += ToggleDisplayPower;
 
-            try
-            {
+            try {
+
+                // Try to locate the sand controllers for the twins
                 sandControllerET = Locator._hourglassTwinA.GetComponentInChildren<SandLevelController>();
                 sandControllerAT = Locator._hourglassTwinB.GetComponentInChildren<SandLevelController>();
+                // Try to locate the lava controller for hollow's lantern
                 lavaControllerHL = GameObject.Find("VolcanicMoon_Body/MoltenCore_VM").GetComponent<SandLevelController>();
             }
             catch
@@ -107,6 +111,7 @@ namespace ShipPlanetProjector
 
             try
             {
+                // Try to locate each of the actual in game planet GameObjects
                 actualPlanets["Hollow's Lantern"] = GameObject.Find("VolcanicMoon_Body");
                 actualPlanets["The Attlerock"] = GameObject.Find("Moon_Body");
                 actualPlanets["Timber Hearth"] = GameObject.Find("TimberHearth_Body");
@@ -135,6 +140,7 @@ namespace ShipPlanetProjector
             
             try
             {
+                // Try to get the volcanic moon meteor emitters
                 GameObject volcanicMoonEffects = GameObject.Find("VolcanicMoon_Body/Sector_VM/Effects_VM/");
 
                 meteorLaunchControllers.Add(volcanicMoonEffects.transform.GetChild(1).GetChild(0).GetComponent<MeteorLauncher>());
@@ -149,6 +155,7 @@ namespace ShipPlanetProjector
 
             try
             {
+                // Try to create the ship indicator
                 CreateShipIndicator();
             }
             catch
@@ -219,15 +226,17 @@ namespace ShipPlanetProjector
                 {
                     Renderer atmopshereRendererBH = planet.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
                     if (atmopshereRendererBH) atmopshereRendererBH.enabled = true;
-                }
+                }*/
 
                 // Enable The Interloper's tails
                 if (entry.Key == "The Interloper")
                 {
+                    // Get the Interloper tail holder
                     Transform tailEffectsParent = planet.transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
 
                     if (tailEffectsParent)
                     {
+                        // Loop through each tail
                         for (int i = 0; i < tailEffectsParent.childCount; i++)
                         {
                             Transform tail = tailEffectsParent.GetChild(i);
@@ -235,13 +244,19 @@ namespace ShipPlanetProjector
 
                             if (tailMeshRenderer)
                             {
-                                tailMeshRenderer.enabled = true;
+                                //tailMeshRenderer.enabled = true;
+
+                                // Set the fade distances to 0 to prevent the tails being invisble when close up
                                 tailMeshRenderer.material.SetFloat("_CameraFadeDist", 0.0f);
                                 tailMeshRenderer.material.SetFloat("_GeomFadeDist", 0.0f);
                             }
                         }
                     }
-                }*/
+                    else
+                    {
+                        modConsole.WriteLine("Failed to locate The Interloper's tail", MessageType.Error);
+                    }
+                }
 
                 // Enable all the children of the object and remove hitboxes
                 if (planRoot)
@@ -360,39 +375,40 @@ namespace ShipPlanetProjector
             {
                 // ET atmosphere
                 Renderer atmopshereRendererAT = planetModels["Twins"].transform.Find("AshTwin")?.Find("Atmosphere_TowerTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererAT != null) atmopshereRendererAT.enabled = atmospheresEnabled;
+                if (atmopshereRendererAT) atmopshereRendererAT.enabled = atmospheresEnabled;
 
                 // AT atmosphere
                 Renderer atmopshereRendererET = planetModels["Twins"].transform.Find("EmberTwin")?.Find("Atmosphere_CaveTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererET != null) atmopshereRendererET.enabled = atmospheresEnabled;
+                if (atmopshereRendererET) atmopshereRendererET.enabled = atmospheresEnabled;
             }
 
             if (planetModels.ContainsKey("Timber Hearth"))
             {
                 // TH atmosphere
                 Renderer atmopshereRendererTH = planetModels["Timber Hearth"].transform.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererTH) atmopshereRendererTH.enabled = true;
+                if (atmopshereRendererTH) atmopshereRendererTH.enabled = atmospheresEnabled;
             }
 
             if (planetModels.ContainsKey("Brittle Hollow"))
             {
                 // BH atmosphere
                 Renderer atmopshereRendererBH = planetModels["Brittle Hollow"].transform.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererBH) atmopshereRendererBH.enabled = true;
+                if (atmopshereRendererBH) atmopshereRendererBH.enabled = atmospheresEnabled;
             }
 
             if (planetModels.ContainsKey("Giant's Deep"))
             {
                 // GD atmosphere
                 Renderer atmopshereRendererGD = planetModels["Giant's Deep"].transform.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererGD) atmopshereRendererGD.enabled = true;
+                if (atmopshereRendererGD) atmopshereRendererGD.enabled = atmospheresEnabled;
             }
 
             if (planetModels.ContainsKey("The Interloper"))
             {
-                // Interloper tails
+                // Get the Interloper tail holder
                 Transform tailEffectsParent = planetModels["The Interloper"].transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
 
+                // If it exists then loop through each tail and toggle the mesh renderer based on the comet trails setting
                 if (tailEffectsParent)
                 {
                     for (int i = 0; i < tailEffectsParent.childCount; i++)
@@ -400,15 +416,13 @@ namespace ShipPlanetProjector
                         Transform tail = tailEffectsParent.GetChild(i);
                         MeshRenderer tailMeshRenderer = tail.GetComponent<MeshRenderer>();
 
-                        if (tailMeshRenderer)
-                        {
-                            tailMeshRenderer.enabled = true;
-                            tailMeshRenderer.material.SetFloat("_CameraFadeDist", 0.0f);
-                            tailMeshRenderer.material.SetFloat("_GeomFadeDist", 0.0f);
-                        }
+                        // Toggle the tail mesh renderer based on the comet trails setting
+                        if (tailMeshRenderer) tailMeshRenderer.enabled = cometTrailsEnabled;
                     }
                 }
             }
+
+            modConsole.WriteLine($"Updated settings: atmospheresEnabled={atmospheresEnabled}, cometTrailsEnabled={cometTrailsEnabled}", MessageType.Success);
         }
 
         public void OnDestroy()
@@ -969,7 +983,8 @@ namespace ShipPlanetProjector
                 // Expand the sphere
                 shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * minSize * normalisedScale, Vector3.one * maxSize * normalisedScale, t);
 
-                yield return null; // Wait for the next frame
+                // Wait for the next frame
+                yield return null;
             }
 
             elapsedTime = 0.0f;
@@ -986,7 +1001,8 @@ namespace ShipPlanetProjector
                 // Shrink the sphere
                 shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * maxSize * normalisedScale, Vector3.one * minSize * normalisedScale, t);
 
-                yield return null; // Wait for the next frame
+                // Wait for the next frame
+                yield return null;
             }
 
             // After the animation, reset and prepare for the next blink
