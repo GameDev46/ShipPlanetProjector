@@ -1,4 +1,28 @@
 {
   "$schema": "https://raw.githubusercontent.com/ow-mods/owml/master/schemas/config_schema.json",
-  "enabled": true
+  "enabled": true,
+  "settings": {
+
+    "planetAtmospheres": {
+      "title": "Planet Atmospheres",
+      "type": "selector",
+      "value": "Enabled",
+      "options": [
+        "Enabled",
+        "Disabled"
+      ],
+      "tooltip": "Controls whether the atmospheres of planets are shown"
+    },
+    "cometEffects": {
+      "title": "Interloper Trail",
+      "type": "selector",
+      "value": "Enabled",
+      "options": [
+        "Enabled",
+        "Disabled"
+      ],
+      "tooltip": "Controls whether The Inteloper's trail effects are shown"
+    }
+
+  }
 }

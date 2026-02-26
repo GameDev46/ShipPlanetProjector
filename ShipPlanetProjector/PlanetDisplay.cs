@@ -180,12 +180,68 @@ namespace ShipPlanetProjector
 
                 planet.transform.localPosition = new Vector3(-0.3f, 0.1f, 1.5f);
                 planet.transform.localRotation = Quaternion.Euler(0.0f, 90.0f, 270.0f);
-                
 
                 if (entry.Key == "Giant's Deep") planet.transform.localScale = new Vector3(0.0007f, 0.0007f, 0.0007f);
+                if (entry.Key == "Quantum Moon") planet.transform.localScale = new Vector3(0.0004f, 0.0004f, 0.0004f);
                 if (entry.Key == "Dark Bramble") planet.transform.localScale = new Vector3(0.001f, 0.001f, 0.001f);
                 if (entry.Key == "Brittle Hollow") planet.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
                 if (entry.Key == "The Sun") planet.transform.localScale = new Vector3(0.0002f, 0.0002f, 0.0002f);
+
+                // Fix the cloud layer being invisble for GD
+                if (entry.Key == "Giant's Deep")
+                {
+                    // Locate the cloud material and update the fade distance (x: fade start, y: fade end, z: unused, w: unused)
+                    Material cloudMat = planet.transform.Find("Proxy_GD")?.Find("CloudsTopLayer_GD (1)")?.GetComponent<MeshRenderer>()?.material;
+                    if (cloudMat) cloudMat.SetVector("_FadeDist", new Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+
+                    // Enable Giant's Deep atmosphere
+                    /*Renderer atmopshereRendererGD = planet.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                    if (atmopshereRendererGD) atmopshereRendererGD.enabled = true;*/
+                }
+
+                // Fix the cloud layer being invisble for QM
+                if (entry.Key == "Quantum Moon")
+                {
+                    // Locate the cloud material and update the fade distance (x: fade start, y: fade end, z: unused, w: unused)
+                    Material cloudMat = planet.transform.Find("Clouds_QM")?.Find("CloudsTopLayer_QM")?.GetComponent<MeshRenderer>()?.material;
+                    if (cloudMat) cloudMat.SetVector("_FadeDist", new Vector4(0.0f, 0.0f, 0.0f, 0.0f));
+                }
+
+                // Enable Timber Hearth's atmosphere
+                /*if (entry.Key == "Timber Hearth")
+                {
+                    Renderer atmopshereRendererTH = planet.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                    if (atmopshereRendererTH) atmopshereRendererTH.enabled = true;
+                }
+
+                // Enable Brittle Hollow's atmosphere
+                if (entry.Key == "Brittle Hollow")
+                {
+                    Renderer atmopshereRendererBH = planet.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                    if (atmopshereRendererBH) atmopshereRendererBH.enabled = true;
+                }
+
+                // Enable The Interloper's tails
+                if (entry.Key == "The Interloper")
+                {
+                    Transform tailEffectsParent = planet.transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
+
+                    if (tailEffectsParent)
+                    {
+                        for (int i = 0; i < tailEffectsParent.childCount; i++)
+                        {
+                            Transform tail = tailEffectsParent.GetChild(i);
+                            MeshRenderer tailMeshRenderer = tail.GetComponent<MeshRenderer>();
+
+                            if (tailMeshRenderer)
+                            {
+                                tailMeshRenderer.enabled = true;
+                                tailMeshRenderer.material.SetFloat("_CameraFadeDist", 0.0f);
+                                tailMeshRenderer.material.SetFloat("_GeomFadeDist", 0.0f);
+                            }
+                        }
+                    }
+                }*/
 
                 // Enable all the children of the object and remove hitboxes
                 if (planRoot)
@@ -252,6 +308,13 @@ namespace ShipPlanetProjector
 
                     float emberSandRadius = sandControllerET.GetRadius() * 0.030303f * 2.0f;
                     emberTwinSand.transform.localScale = new Vector3(emberSandRadius, emberSandRadius, emberSandRadius);
+
+                    // Enable both the ET adn AT atmospheres
+                    /*Renderer atmopshereRendererAT = ashTwin.Find("Atmosphere_TowerTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                    if (atmopshereRendererAT != null) atmopshereRendererAT.enabled = true;
+
+                    Renderer atmopshereRendererET = emberTwin.Find("Atmosphere_CaveTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                    if (atmopshereRendererET != null) atmopshereRendererET.enabled = true;*/
                 }
 
                 planet.SetActive(false);
@@ -288,6 +351,64 @@ namespace ShipPlanetProjector
                 modConsole.WriteLine($"Setup {fragCount} fragments", MessageType.Success);
             }
 
+        }
+
+        public void UpdateSettings(bool atmospheresEnabled, bool cometTrailsEnabled)
+        {
+
+            if (planetModels.ContainsKey("Twins"))
+            {
+                // ET atmosphere
+                Renderer atmopshereRendererAT = planetModels["Twins"].transform.Find("AshTwin")?.Find("Atmosphere_TowerTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                if (atmopshereRendererAT != null) atmopshereRendererAT.enabled = atmospheresEnabled;
+
+                // AT atmosphere
+                Renderer atmopshereRendererET = planetModels["Twins"].transform.Find("EmberTwin")?.Find("Atmosphere_CaveTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                if (atmopshereRendererET != null) atmopshereRendererET.enabled = atmospheresEnabled;
+            }
+
+            if (planetModels.ContainsKey("Timber Hearth"))
+            {
+                // TH atmosphere
+                Renderer atmopshereRendererTH = planetModels["Timber Hearth"].transform.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                if (atmopshereRendererTH) atmopshereRendererTH.enabled = true;
+            }
+
+            if (planetModels.ContainsKey("Brittle Hollow"))
+            {
+                // BH atmosphere
+                Renderer atmopshereRendererBH = planetModels["Brittle Hollow"].transform.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                if (atmopshereRendererBH) atmopshereRendererBH.enabled = true;
+            }
+
+            if (planetModels.ContainsKey("Giant's Deep"))
+            {
+                // GD atmosphere
+                Renderer atmopshereRendererGD = planetModels["Giant's Deep"].transform.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                if (atmopshereRendererGD) atmopshereRendererGD.enabled = true;
+            }
+
+            if (planetModels.ContainsKey("The Interloper"))
+            {
+                // Interloper tails
+                Transform tailEffectsParent = planetModels["The Interloper"].transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
+
+                if (tailEffectsParent)
+                {
+                    for (int i = 0; i < tailEffectsParent.childCount; i++)
+                    {
+                        Transform tail = tailEffectsParent.GetChild(i);
+                        MeshRenderer tailMeshRenderer = tail.GetComponent<MeshRenderer>();
+
+                        if (tailMeshRenderer)
+                        {
+                            tailMeshRenderer.enabled = true;
+                            tailMeshRenderer.material.SetFloat("_CameraFadeDist", 0.0f);
+                            tailMeshRenderer.material.SetFloat("_GeomFadeDist", 0.0f);
+                        }
+                    }
+                }
+            }
         }
 
         public void OnDestroy()

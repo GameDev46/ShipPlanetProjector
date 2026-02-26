@@ -26,6 +26,8 @@ namespace ShipPlanetProjector
         private bool hasInitialised = false;
         private bool isInSolarSystem = false;
 
+        PlanetDisplay planetDisplay;
+
         Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
 
         public void Awake()
@@ -57,6 +59,17 @@ namespace ShipPlanetProjector
                 hasInitialised = false;
                 isInSolarSystem = true;
             });
+        }
+
+        // Called by OWML; once at the start and upon each config setting change.
+        public override void Configure(IModConfig config)
+        {
+            if (planetDisplay == null) return;
+
+            bool atmospheresEnabled = config.GetSettingsValue<string>("planetAtmospheres") == "Enabled";
+            bool cometTrailsEnabled = config.GetSettingsValue<string>("cometEffects") == "Enabled";
+
+            planetDisplay.UpdateSettings(atmospheresEnabled, cometTrailsEnabled);
         }
 
         public void Update()
@@ -209,7 +222,7 @@ namespace ShipPlanetProjector
             ModHelper.Console.WriteLine($"Created {planetModels.Count} planet models", MessageType.Success);
 
             // Call the planet display manager to setup the actual display
-            PlanetDisplay.Create(planetModels, hologramParent, ModHelper.Console);
+            planetDisplay = PlanetDisplay.Create(planetModels, hologramParent, ModHelper.Console);
         }
 
         // Credit to MegaPiggy for the cloning and showProxy method, which allows us to clone the proxy bodies so they

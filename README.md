@@ -17,7 +17,3 @@ Huge thanks to [MegaPiggy](https://github.com/MegaPiggy) for the [AdvancedMinima
 To turn on the projector you can use the metal control box to the left of the cockpit chair and then the projector will display the current focused planet in the ship's log
 
 <img width="1920" alt="Screenshot (300)" src="https://github.com/user-attachments/assets/1f27b0f7-4b35-452f-834c-9a667544c65e" />
-
-## Known Issues
-
-Giant's Deep is barely visible - this is due to the cloud layer thinking you are too close and not rendering as a result (which is why you can see a faint outline)

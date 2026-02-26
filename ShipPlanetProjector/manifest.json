@@ -4,7 +4,7 @@
   "author": "GameDev46",
   "name": "Ship Planet Projector",
   "uniqueName": "GameDev46.ShipPlanetProjector",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "owmlVersion": "2.14.0",
   "dependencies": []
 }
