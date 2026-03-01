@@ -23,12 +23,10 @@ namespace ShipPlanetProjector
         private static readonly Dictionary<string, GameObject> CachedGameObjects = new Dictionary<string, GameObject>();
         private static readonly Dictionary<string, GameObject> CachedRootGameObjects = new Dictionary<string, GameObject>();
 
-        private bool hasInitialised = false;
-        private bool isInSolarSystem = false;
-
         PlanetDisplay planetDisplay;
 
         Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
+        Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
 
         public void Awake()
         {
@@ -51,14 +49,9 @@ namespace ShipPlanetProjector
 
         public void OnCompleteSceneLoad(OWScene previousScene, OWScene newScene)
         {
-            isInSolarSystem = false;
             if (newScene != OWScene.SolarSystem) return;
 
-            ModHelper.Events.Unity.FireOnNextUpdate(() =>
-            {
-                hasInitialised = false;
-                isInSolarSystem = true;
-            });
+            StartCoroutine(waitToSetupPlanets());
         }
 
         // Called by OWML; once at the start and upon each config setting change.
@@ -72,20 +65,16 @@ namespace ShipPlanetProjector
             planetDisplay.UpdateSettings(atmospheresEnabled, cometTrailsEnabled);
         }
 
-        public void Update()
+        IEnumerator waitToSetupPlanets()
         {
-            // Only initialise when the player has loaded into the actual game
-            if (!hasInitialised && isInSolarSystem)
-            {
-                hasInitialised = true;
-                SetupPlanetProjector();
-            }
+            yield return new WaitForSeconds(2.0f);
+            SetupPlanetProjector();
         }
 
         private void SetupPlanetProjector()
         {
             Transform shipTransform = Locator.GetShipTransform();
-            Transform hologramParent = shipTransform.Find("Module_Cabin");
+            Transform shipCabinTransform = shipTransform.Find("Module_Cabin");
 
             if (shipTransform == null)
             {
@@ -93,110 +82,98 @@ namespace ShipPlanetProjector
                 return;
             }
 
-            if (hologramParent == null)
+            if (shipCabinTransform == null)
             {
                 ModHelper.Console.WriteLine("Couldn't locate the ship's cabin module", MessageType.Error);
                 return;
             }
 
             // Find all the proxy body objects
-            var proxies = FindObjectsOfType<ProxyBody>();
+            GameObject proxyManager = GameObject.Find("DistantProxyManager");
+            var distanceProxies = proxyManager.GetComponent<DistantProxyManager>()._proxies;
 
-            // Store the twin gameobjects so they can be grouped
-            GameObject emberTwin = null;
-            GameObject ashTwin = null;
-               
-            // Clear the planet models dictionary
+            // Clear the planet models and actual planets dictionaries
             planetModels = new Dictionary<string, GameObject>();
+            actualPlanets = new Dictionary<string, GameObject>();
 
             // Loop through all the proxies and look for the main game planets and moons
-            foreach (var proxy in proxies)
+            foreach (var distanceProxy in distanceProxies)
             {
-                string n = proxy.name;
-                //if (!n.Contains("(Clone)")) continue;
-                if (n.Contains("BakedTerrain")) continue;
-                if (n.Contains("ProxyFragment")) continue;
-                if (n.Contains("Chunk")) continue;
-                if (n.Contains("to")) continue;
+                // Get the corresponding cloned proxy body from the scene
+                ProxyBody proxy = GameObject.Find(distanceProxy.proxyPrefab.name + "(Clone)")?.GetComponent<ProxyBody>();
 
-                if (n.Contains("EmberTwin"))
-                {
-                    Clone(ref emberTwin, proxy);
-                }
-                else if (n.Contains("AshTwin"))
-                {
-                    Clone(ref ashTwin, proxy);
-                }
-                else if (n.Contains("TimberHearth"))
-                {
-                    GameObject timberHearthModel = null;
-                    Clone(ref timberHearthModel, proxy);
+                // If there is no corresponding proxy body in the scene, skip this proxy
+                if (!proxy) continue;
 
-                    GameObject THMoon = timberHearthModel.GetComponentInChildren<ProxyOrbiter>(true).gameObject;
-                    DestroyImmediate(THMoon.GetComponent<ProxyOrbiter>());
-                    THMoon.name = "TimberMoon";
+                // Get the proxy name
+                string proxyName = proxy.name;
 
-                    planetModels["Timber Hearth"] = timberHearthModel;
-                }
-                else if (n.Contains("BrittleHollow"))
-                {
-                    GameObject brittleHollow = null;
-                    Clone(ref brittleHollow, proxy);
+                // Get the planet name by removing the proxy suffix
+                string planetName = proxyName.Replace("_DistantProxy", "").Replace("(Clone)", "");
 
-                    GameObject BHMoon = brittleHollow.GetComponentInChildren<ProxyOrbiter>(true).gameObject;
-                    DestroyImmediate(BHMoon.GetComponent<ProxyOrbiter>());
-                    BHMoon.name = "VolcanicMoon";
+                // Clone the proxy model
+                GameObject proxyModel = null;
+                Clone(ref proxyModel, proxy);
 
-                    planetModels["Brittle Hollow"] = brittleHollow;
-                }
-                else if (n.Contains("GiantsDeep"))
+                // Name the proxy model after the planet
+                proxyModel.name = planetName;
+
+                // Remove the ProxyOrbiter component from any moons
+                foreach (ProxyOrbiter po in proxyModel.GetComponentsInChildren<ProxyOrbiter>())
                 {
-                    GameObject giantsDeep = null;
-                    Clone(ref giantsDeep, proxy);
-                    planetModels["Giant's Deep"] = giantsDeep;
-                }
-                else if (n.Contains("DarkBramble"))
-                {
-                    GameObject darkBramble = null;
-                    Clone(ref darkBramble, proxy);
-                    planetModels["Dark Bramble"] = darkBramble;
-                }
-                else if (n.Contains("Comet"))
-                {
-                    GameObject comet = null;
-                    Clone(ref comet, proxy);
-                    planetModels["The Interloper"] = comet;
-                }
-                else if (n.Contains("WhiteHole"))
-                {
-                    GameObject whiteHole = null;
-                    Clone(ref whiteHole, proxy);
-                    planetModels["White Hole"] = whiteHole;
-                }
-                else if (n.Contains("QuantumMoon"))
-                {
-                    GameObject quantumMoon = null;
-                    Clone(ref quantumMoon, proxy);
-                    planetModels["Quantum Moon"] = quantumMoon;
+                    // Name the moon by removing the suffix
+                    string moonName = po.transform.parent.name.Replace("_Pivot", "");
+                    if (po.transform.name.Contains("_Body")) moonName = po.transform.name.Replace("_Body", "");
+
+                    po.transform.name = moonName;
+
+                    // Get the actual moon's model
+                    GameObject moonModel = po._originalBody.gameObject;
+
+                    // Reset proxy moon's parent
+                    po.transform.parent.localPosition = Vector3.zero;
+                    po.transform.parent.localRotation = Quaternion.identity;
+
+                    // Add the moon model to the actual planets dictionary
+                    if (moonModel) actualPlanets[moonName] = moonModel;
+
+                    // Remove the proxy orbiter component
+                    DestroyImmediate(po);
                 }
 
+                // Get the proxy's corresponding actual planet model
+                GameObject planetModel = proxy._realObjectTransform.gameObject;
+
+                // This is later changed in PlanetDisplay.cs but it allows the model to be scaled
+                // to fit within the ship's cabin
+                proxyModel.transform.localScale = Vector3.one * proxy._realObjectDiameter;
+
+                // If there is no corresponding actual planet model, skip this proxy
+                if (!planetModel) continue;
+
+                // Add the poxy and actual planet to their respective dictionaries
+                planetModels[planetName] = proxyModel;
+                actualPlanets[planetName] = planetModel;
+
+                ModHelper.Console.WriteLine($"Loaded proxy {planetName}", MessageType.Success);
             }
 
             // Group the twins together to act as the center of mass
-            if (emberTwin != null && ashTwin != null)
+            if (planetModels["EmberTwin"] != null && planetModels["AshTwin"] != null)
             {
                 GameObject centerPivot = new GameObject("Twins Pivot");
 
-                Transform sandStreamFromAshTwin = ashTwin.transform.Find("SandColumnRoot");
+                Transform sandStreamFromAshTwin = planetModels["AshTwin"].transform.Find("SandColumnRoot");
                 float twinsDistance = 500.0f;
 
-                ashTwin.transform.parent = centerPivot.transform;
-                ashTwin.transform.localPosition = new Vector3(0.0f, twinsDistance * 0.5f, 0.0f);
+                planetModels["AshTwin"].transform.parent = centerPivot.transform;
+                planetModels["AshTwin"].transform.localPosition = new Vector3(0.0f, twinsDistance * 0.5f, 0.0f);
 
-                emberTwin.transform.parent = centerPivot.transform;
-                emberTwin.transform.localPosition = new Vector3(0.0f, -twinsDistance * 0.5f, 0.0f);
+                planetModels["EmberTwin"].transform.parent = centerPivot.transform;
+                planetModels["EmberTwin"].transform.localPosition = new Vector3(0.0f, -twinsDistance * 0.5f, 0.0f);
 
                 planetModels["Twins"] = centerPivot;
+                actualPlanets["Twins"] = GameObject.Find("FocalBody");
             }
 
             // Create the sun as a child of the solar system node
@@ -222,7 +199,7 @@ namespace ShipPlanetProjector
             ModHelper.Console.WriteLine($"Created {planetModels.Count} planet models", MessageType.Success);
 
             // Call the planet display manager to setup the actual display
-            planetDisplay = PlanetDisplay.Create(planetModels, hologramParent, ModHelper.Console);
+            planetDisplay = PlanetDisplay.Create(planetModels, actualPlanets, shipCabinTransform, ModHelper.Console);
 
             // Apply the current config settings
             bool atmospheresEnabled = ModHelper.Config.GetSettingsValue<string>("planetAtmospheres") == "Enabled";

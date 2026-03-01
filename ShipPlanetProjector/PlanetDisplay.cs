@@ -18,9 +18,8 @@ namespace ShipPlanetProjector
 {
     public class PlanetDisplay : MonoBehaviour
     {
-
-        Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
         Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
+        Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
 
         InteractReceiver powerReciever;
 
@@ -50,22 +49,24 @@ namespace ShipPlanetProjector
 
         bool displayPowered = false;
 
-        string activePlanetName = "Timber Hearth";
+        string activePlanetName = "TimberHearth";
 
         float rotationTicker = 0.0f;
 
-        public static PlanetDisplay Create(Dictionary<string, GameObject> planets, Transform parent, IModConsole modHelperConsole)
+        public static PlanetDisplay Create(Dictionary<string, GameObject> planetModels, Dictionary<string, GameObject> actualPlanets, Transform parent, IModConsole modHelperConsole)
         {
             var go = new GameObject("Planet Hologram Display");
 
             var planetController = go.AddComponent<PlanetDisplay>();
-            planetController.planetModels = planets;
+            planetController.planetModels = planetModels;
+            planetController.actualPlanets = actualPlanets;
             planetController.modConsole = modHelperConsole;
 
             go.transform.position = parent.transform.position;
             go.transform.parent = parent;
 
-            go.transform.localPosition = new Vector3(0.0f, 3.7f, 0.3f);
+            go.transform.localPosition = new Vector3(0.0f, 2.3f, 0.0f);
+            go.transform.localRotation = Quaternion.identity;
 
             return planetController;
         }
@@ -111,33 +112,22 @@ namespace ShipPlanetProjector
 
             try
             {
-                // Try to locate each of the actual in game planet GameObjects
-                actualPlanets["Hollow's Lantern"] = GameObject.Find("VolcanicMoon_Body");
-                actualPlanets["The Attlerock"] = GameObject.Find("Moon_Body");
-                actualPlanets["Timber Hearth"] = GameObject.Find("TimberHearth_Body");
-                actualPlanets["Giant's Deep"] = GameObject.Find("GiantsDeep_Body");
-                actualPlanets["Brittle Hollow"] = GameObject.Find("BrittleHollow_Body");
-                actualPlanets["Ash Twin"] = GameObject.Find("TowerTwin_Body");
-                actualPlanets["Ember Twin"] = GameObject.Find("CaveTwin_Body");
-                actualPlanets["Twins"] = GameObject.Find("FocalBody");
-                actualPlanets["Dark Bramble"] = GameObject.Find("DarkBramble_Body");
-                actualPlanets["White Hole"] = GameObject.Find("WhiteHole_Body");
-                actualPlanets["The Interloper"] = GameObject.Find("Comet_Body");
-                actualPlanets["Quantum Moon"] = GameObject.Find("QuantumMoon_Body");
-
-                actualPlanets["Orbital Probe Cannon"] = GameObject.Find("OrbitalProbeCannon_Body");
-                actualPlanets["Orbital Probe Cannon Muzzle"] = GameObject.Find("CannonMuzzle_Body");
-                actualPlanets["Orbital Probe Cannon Barrel"] = GameObject.Find("CannonBarrel_Body");
-
                 actualPlanets["The Sun"] = GameObject.Find("Sun_Body");
-
-                mapModeObj = GameObject.Find("Ship_Body/Module_Cabin/Systems_Cabin/ShipLogPivot/ShipLog/ShipLogPivot/ShipLogCanvas/MapMode");
             }
             catch
             {
                 modConsole.WriteLine("Failed to locate planet bodies", MessageType.Error);
             }
-            
+
+            try
+            {
+                mapModeObj = GameObject.Find("Ship_Body/Module_Cabin/Systems_Cabin/ShipLogPivot/ShipLog/ShipLogPivot/ShipLogCanvas/MapMode");
+            }
+            catch
+            {
+                modConsole.WriteLine("Failed to locate ship's log map", MessageType.Error);
+            }
+
             try
             {
                 // Try to get the volcanic moon meteor emitters
@@ -153,143 +143,16 @@ namespace ShipPlanetProjector
                 modConsole.WriteLine("Failed to locate meteor emitters", MessageType.Error);
             }
 
-            try
-            {
-                // Try to create the ship indicator
-                CreateShipIndicator();
-            }
-            catch
-            {
-                modConsole.WriteLine("Failed to create the ship indicator", MessageType.Error);
-            }
+            // Create the ship indicator
+            CreateShipIndicator();
 
+            // Setup each planet model and parent them to the display
             foreach (KeyValuePair<string, GameObject> entry in planetModels)
             {
                 GameObject planet = entry.Value;
 
-                planet.transform.position = transform.position;
-                planet.transform.parent = transform;
-
-                Transform fogSphere = planet.transform.Find("ShockLayer");
-                Transform planRoot = planet.transform.Find("Root");
-
-                if (fogSphere == null && planRoot) fogSphere = planRoot.transform.Find("ShockLayer");
-
-                if (fogSphere != null)
-                {
-                    float newScale = 1.0f / (fogSphere.localScale.x * 1.4f);
-                    planet.transform.localScale = new Vector3(newScale, newScale, newScale);
-                }
-                else
-                {
-                    planet.transform.localScale = new Vector3(0.002f, 0.002f, 0.002f);
-                }
-
-                planet.transform.localPosition = new Vector3(-0.3f, 0.1f, 1.5f);
-                planet.transform.localRotation = Quaternion.Euler(0.0f, 90.0f, 270.0f);
-
-                if (entry.Key == "Giant's Deep") planet.transform.localScale = new Vector3(0.0007f, 0.0007f, 0.0007f);
-                if (entry.Key == "Quantum Moon") planet.transform.localScale = new Vector3(0.0004f, 0.0004f, 0.0004f);
-                if (entry.Key == "Dark Bramble") planet.transform.localScale = new Vector3(0.001f, 0.001f, 0.001f);
-                if (entry.Key == "Brittle Hollow") planet.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
-                if (entry.Key == "The Sun") planet.transform.localScale = new Vector3(0.0002f, 0.0002f, 0.0002f);
-
-                // Fix the cloud layer being invisble for GD
-                if (entry.Key == "Giant's Deep")
-                {
-                    // Locate the cloud material and update the fade distance (x: fade start, y: fade end, z: unused, w: unused)
-                    Material cloudMat = planet.transform.Find("Proxy_GD")?.Find("CloudsTopLayer_GD (1)")?.GetComponent<MeshRenderer>()?.material;
-                    if (cloudMat) cloudMat.SetVector("_FadeDist", new Vector4(0.0f, 0.0f, 0.0f, 0.0f));
-
-                    // Enable Giant's Deep atmosphere
-                    /*Renderer atmopshereRendererGD = planet.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                    if (atmopshereRendererGD) atmopshereRendererGD.enabled = true;*/
-                }
-
-                // Fix the cloud layer being invisble for QM
-                if (entry.Key == "Quantum Moon")
-                {
-                    // Locate the cloud material and update the fade distance (x: fade start, y: fade end, z: unused, w: unused)
-                    Material cloudMat = planet.transform.Find("Clouds_QM")?.Find("CloudsTopLayer_QM")?.GetComponent<MeshRenderer>()?.material;
-                    if (cloudMat) cloudMat.SetVector("_FadeDist", new Vector4(0.0f, 0.0f, 0.0f, 0.0f));
-                }
-
-                // Enable Timber Hearth's atmosphere
-                /*if (entry.Key == "Timber Hearth")
-                {
-                    Renderer atmopshereRendererTH = planet.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                    if (atmopshereRendererTH) atmopshereRendererTH.enabled = true;
-                }
-
-                // Enable Brittle Hollow's atmosphere
-                if (entry.Key == "Brittle Hollow")
-                {
-                    Renderer atmopshereRendererBH = planet.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                    if (atmopshereRendererBH) atmopshereRendererBH.enabled = true;
-                }*/
-
-                // Enable The Interloper's tails
-                if (entry.Key == "The Interloper")
-                {
-                    // Get the Interloper tail holder
-                    Transform tailEffectsParent = planet.transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
-
-                    if (tailEffectsParent)
-                    {
-                        // Loop through each tail
-                        for (int i = 0; i < tailEffectsParent.childCount; i++)
-                        {
-                            Transform tail = tailEffectsParent.GetChild(i);
-                            MeshRenderer tailMeshRenderer = tail.GetComponent<MeshRenderer>();
-
-                            if (tailMeshRenderer)
-                            {
-                                //tailMeshRenderer.enabled = true;
-
-                                // Set the fade distances to 0 to prevent the tails being invisble when close up
-                                tailMeshRenderer.material.SetFloat("_CameraFadeDist", 0.0f);
-                                tailMeshRenderer.material.SetFloat("_GeomFadeDist", 0.0f);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        modConsole.WriteLine("Failed to locate The Interloper's tail", MessageType.Error);
-                    }
-                }
-
-                // Enable all the children of the object and remove hitboxes
-                if (planRoot)
-                {
-                    planRoot.gameObject.SetActive(true);
-
-                    foreach (Transform child in planRoot)
-                    {
-                        child.gameObject.SetActive(true);
-
-                        SphereCollider sphereColl;
-                        child.TryGetComponent<SphereCollider>(out sphereColl);
-                        if (sphereColl) DestroyImmediate(sphereColl);
-
-                        Collider coll;
-                        child.TryGetComponent<Collider>(out coll);
-                        if (coll) DestroyImmediate(coll);
-                    }
-                } else
-                {
-                    foreach (Transform child in planet.transform)
-                    {
-                        child.gameObject.SetActive(true);
-
-                        SphereCollider sphereColl;
-                        child.TryGetComponent<SphereCollider>(out sphereColl);
-                        if (sphereColl) DestroyImmediate(sphereColl);
-
-                        Collider coll;
-                        child.TryGetComponent<Collider>(out coll);
-                        if (coll) DestroyImmediate(coll);
-                    }
-                }
+                // Setup the planet model
+                HoloDisplayUtils.SetupPlanet(planet, transform);
 
                 if (entry.Key == "Twins")
                 {
@@ -323,31 +186,25 @@ namespace ShipPlanetProjector
 
                     float emberSandRadius = sandControllerET.GetRadius() * 0.030303f * 2.0f;
                     emberTwinSand.transform.localScale = new Vector3(emberSandRadius, emberSandRadius, emberSandRadius);
-
-                    // Enable both the ET adn AT atmospheres
-                    /*Renderer atmopshereRendererAT = ashTwin.Find("Atmosphere_TowerTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                    if (atmopshereRendererAT != null) atmopshereRendererAT.enabled = true;
-
-                    Renderer atmopshereRendererET = emberTwin.Find("Atmosphere_CaveTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                    if (atmopshereRendererET != null) atmopshereRendererET.enabled = true;*/
                 }
 
+                // Disable the planet by default
                 planet.SetActive(false);
             }
 
-            if (planetModels["Brittle Hollow"])
+            if (planetModels.ContainsKey("BrittleHollow"))
             {
-                GameObject brittleHollow = actualPlanets["Brittle Hollow"];
-                GameObject whiteHole = actualPlanets["White Hole"];
+                GameObject brittleHollow = actualPlanets["BrittleHollow"];
+                GameObject whiteHole = actualPlanets["WhiteHole"];
 
                 var realFragmentsForLookup = new List<DetachableFragment>(brittleHollow.GetComponentsInChildren<DetachableFragment>());
 
                 int fragCount = 0;
 
-                foreach (var fragment in planetModels["Brittle Hollow"].GetComponentsInChildren<ProxyBrittleHollowFragment>(true))
+                foreach (var fragment in planetModels["BrittleHollow"].GetComponentsInChildren<ProxyBrittleHollowFragment>(true))
                 {
                     var fragmentObj = fragment.gameObject.AddComponent<BrittleHollowFragmentManager>();
-                    fragmentObj.Setup(fragment, planetModels["Brittle Hollow"], planetModels["White Hole"], modConsole);
+                    fragmentObj.Setup(fragment, planetModels["BrittleHollow"], planetModels["WhiteHole"], modConsole);
 
                     if (brittleHollow != null && whiteHole != null)
                     {
@@ -382,31 +239,31 @@ namespace ShipPlanetProjector
                 if (atmopshereRendererET) atmopshereRendererET.enabled = atmospheresEnabled;
             }
 
-            if (planetModels.ContainsKey("Timber Hearth"))
+            if (planetModels.ContainsKey("TimberHearth"))
             {
                 // TH atmosphere
-                Renderer atmopshereRendererTH = planetModels["Timber Hearth"].transform.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                Renderer atmopshereRendererTH = planetModels["TimberHearth"].transform.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
                 if (atmopshereRendererTH) atmopshereRendererTH.enabled = atmospheresEnabled;
             }
 
-            if (planetModels.ContainsKey("Brittle Hollow"))
+            if (planetModels.ContainsKey("BrittleHollow"))
             {
                 // BH atmosphere
-                Renderer atmopshereRendererBH = planetModels["Brittle Hollow"].transform.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                Renderer atmopshereRendererBH = planetModels["BrittleHollow"].transform.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
                 if (atmopshereRendererBH) atmopshereRendererBH.enabled = atmospheresEnabled;
             }
 
-            if (planetModels.ContainsKey("Giant's Deep"))
+            if (planetModels.ContainsKey("GiantsDeep"))
             {
                 // GD atmosphere
-                Renderer atmopshereRendererGD = planetModels["Giant's Deep"].transform.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
+                Renderer atmopshereRendererGD = planetModels["GiantsDeep"].transform.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
                 if (atmopshereRendererGD) atmopshereRendererGD.enabled = atmospheresEnabled;
             }
 
-            if (planetModels.ContainsKey("The Interloper"))
+            if (planetModels.ContainsKey("Comet"))
             {
                 // Get the Interloper tail holder
-                Transform tailEffectsParent = planetModels["The Interloper"].transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
+                Transform tailEffectsParent = planetModels["Comet"].transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
 
                 // If it exists then loop through each tail and toggle the mesh renderer based on the comet trails setting
                 if (tailEffectsParent)
@@ -427,6 +284,7 @@ namespace ShipPlanetProjector
 
         public void OnDestroy()
         {
+            // Remove the interaction event to prevent errors if the display is destroyed
             powerReciever.OnPressInteract -= ToggleDisplayPower;
         }
 
@@ -439,41 +297,24 @@ namespace ShipPlanetProjector
                 int selectedPlanetIndex = shipLogMode._objIndex;
                 int selectedPlanetRow = shipLogMode._rowIndex;
 
-                // Get the focused planet (Assume Timber Hearth)
-                string focusedPlanet = "Timber Hearth";
+                // Check that the selected indices are valid
+                if (selectedPlanetIndex < 0) return;
+                if (selectedPlanetRow < 0) return;
 
-                if (selectedPlanetIndex == 0 && selectedPlanetRow == 1) focusedPlanet = "Twins";            // Ash Twin
-                if (selectedPlanetIndex == 1 && selectedPlanetRow == 1) focusedPlanet = "Timber Hearth";    // Attlerock
-                if (selectedPlanetIndex == 2 && selectedPlanetRow == 1) focusedPlanet = "Brittle Hollow";   // Hollow's Lantern
-                if (selectedPlanetIndex == 3 && selectedPlanetRow == 1) focusedPlanet = "Giant's Deep";     // Orbital Probe Cannon
+                if (selectedPlanetRow >= shipLogMode._astroObjects.Length) return;
+                if (selectedPlanetIndex >= shipLogMode._astroObjects[selectedPlanetRow].Length) return;
 
-                if (selectedPlanetIndex == 0 && selectedPlanetRow == 2) focusedPlanet = "The Sun";
-                if (selectedPlanetIndex == 1 && selectedPlanetRow == 2) focusedPlanet = "Twins";            // Ember Twin
-                if (selectedPlanetIndex == 2 && selectedPlanetRow == 2) focusedPlanet = "Timber Hearth";
-                if (selectedPlanetIndex == 3 && selectedPlanetRow == 2) focusedPlanet = "Brittle Hollow";
-                if (selectedPlanetIndex == 4 && selectedPlanetRow == 2) focusedPlanet = "Giant's Deep";
-                if (selectedPlanetIndex == 5 && selectedPlanetRow == 2) focusedPlanet = "Dark Bramble";
-                if (selectedPlanetIndex == 6 && selectedPlanetRow == 2) focusedPlanet = "White Hole";
-                if (selectedPlanetIndex == 7 && selectedPlanetRow == 2) focusedPlanet = "The Interloper";
+                // Get the currently selected planet from the ship log
+                ShipLogAstroObject currentLogPlanet = shipLogMode._astroObjects[selectedPlanetRow][selectedPlanetIndex];
+                string focusedPlanet = currentLogPlanet.name;
 
-                if (selectedPlanetIndex == 0 && selectedPlanetRow == 3) focusedPlanet = "Timber Hearth";    // Stranger - implement later
-                if (selectedPlanetIndex == 1 && selectedPlanetRow == 3) focusedPlanet = "Quantum Moon";
+                // Fix some of the names to match the planet models
+                if (focusedPlanet == "CaveTwin" || focusedPlanet == "TowerTwin") focusedPlanet = "Twins";
+                if (focusedPlanet == "Interloper") focusedPlanet = "Comet";
+                if (focusedPlanet == "SunStation") focusedPlanet = "The Sun";
 
-                // Check that the focused planet is valid
-                bool validPlanetName = false;
-
-                if (focusedPlanet == "Twins") validPlanetName = true;
-                if (focusedPlanet == "Timber Hearth") validPlanetName = true;
-                if (focusedPlanet == "Brittle Hollow") validPlanetName = true;
-                if (focusedPlanet == "Giant's Deep") validPlanetName = true;
-                if (focusedPlanet == "Dark Bramble") validPlanetName = true;
-                if (focusedPlanet == "White Hole") validPlanetName = true;
-                if (focusedPlanet == "The Interloper") validPlanetName = true;
-                if (focusedPlanet == "Quantum Moon") validPlanetName = true;
-                if (focusedPlanet == "The Sun") validPlanetName = true;
-
-                // Ignore invalid planets
-                if (!validPlanetName) return;
+                // Check that the name exists in planet models
+                if (!planetModels.ContainsKey(focusedPlanet)) return;
 
                 // Check that the planet is different to the last seleced planet
                 if (focusedPlanet == activePlanetName) return;
@@ -481,6 +322,7 @@ namespace ShipPlanetProjector
                 // If the previous active planet was the sun then reset all the planets positions
                 if (activePlanetName == "The Sun") ResetModelPlanets();
 
+                // Set the active planet to the currently focused planet
                 activePlanetName = focusedPlanet;
 
                 // Switch the currently displayed planet
@@ -493,33 +335,7 @@ namespace ShipPlanetProjector
             foreach (KeyValuePair<string, GameObject> entry in planetModels)
             {
                 GameObject planet = entry.Value;
-
-                planet.transform.position = transform.position;
-                planet.transform.parent = transform;
-
-                Transform fogSphere = planet.transform.Find("ShockLayer");
-                Transform planRoot = planet.transform.Find("Root");
-
-                if (fogSphere == null && planRoot) fogSphere = planRoot.transform.Find("ShockLayer");
-
-                if (fogSphere != null)
-                {
-                    float newScale = 1.0f / (fogSphere.localScale.x * 1.4f);
-                    planet.transform.localScale = new Vector3(newScale, newScale, newScale);
-                }
-                else
-                {
-                    planet.transform.localScale = new Vector3(0.002f, 0.002f, 0.002f);
-                }
-
-                planet.transform.localPosition = new Vector3(-0.3f, 0.1f, 1.5f);
-                planet.transform.localRotation = Quaternion.Euler(0.0f, 90.0f, 270.0f);
-
-
-                if (entry.Key == "Giant's Deep") planet.transform.localScale = new Vector3(0.0007f, 0.0007f, 0.0007f);
-                if (entry.Key == "Dark Bramble") planet.transform.localScale = new Vector3(0.001f, 0.001f, 0.001f);
-                if (entry.Key == "Brittle Hollow") planet.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
-                if (entry.Key == "The Sun") planet.transform.localScale = new Vector3(0.0002f, 0.0002f, 0.0002f);
+                HoloDisplayUtils.SetupPlanet(planet, transform, false);
             }
         }
 
@@ -529,15 +345,11 @@ namespace ShipPlanetProjector
 
             if (displayPowered) {
                 powerReciever.ChangePrompt("Toggle Off HoloMap");
-
-                // Display the active planet
-                SwitchDisplayedPlanet(activePlanetName);
+                SwitchDisplayedPlanet(activePlanetName); // Display the active planet
             }
             else {
                 powerReciever.ChangePrompt("Toggle On HoloMap");
-
-                // Hide the displayed planet
-                SwitchDisplayedPlanet("");
+                SwitchDisplayedPlanet(""); // Hide the displayed planet
             }
 
             powerReciever.ResetInteraction();
@@ -552,26 +364,6 @@ namespace ShipPlanetProjector
 
                 // If the current planet is selected then re-enable it
                 if ((entry.Key == planetName || planetName == "The Sun") && displayPowered) planet.SetActive(true);
-
-                // Disable the sun
-                if (entry.Key == "The Sun") planet.transform.Find("Sun").gameObject.SetActive(false);
-
-                // Disable both twins
-                if (entry.Key == "Twins")
-                {
-                    planet.transform.Find("AshTwin").gameObject.SetActive(false);
-                    planet.transform.Find("EmberTwin").gameObject.SetActive(false);
-                }
-            }
-
-            // Enable the sun sphere if it is selected and powered
-            if (planetName == "The Sun" && displayPowered) planetModels["The Sun"].transform.Find("Sun").gameObject.SetActive(true);
-
-            // Enable both twins if they are selected and powered
-            if ((planetName == "Twins" || planetName == "The Sun") && displayPowered)
-            {
-                planetModels["Twins"].transform.Find("AshTwin").gameObject.SetActive(true);
-                planetModels["Twins"].transform.Find("EmberTwin").gameObject.SetActive(true);
             }
         }
 
@@ -584,9 +376,11 @@ namespace ShipPlanetProjector
 
                 GameObject meteor = meteorCont.transform.gameObject;
 
+                // Check if the meteor is already being tracked
                 if (meteor.transform.name.Contains("(used)")) continue;
                 meteor.transform.name = meteor.transform.name + " (used)";
 
+                // Clone the meteor and remove all the unnecessary components
                 GameObject fakeMeteor = null;
                 Clone(ref fakeMeteor, meteor);
 
@@ -603,42 +397,17 @@ namespace ShipPlanetProjector
 
                 ShowGameObject(fakeMeteor);
 
-                fakeMeteor.transform.Find("MeteorGlowLight").GetComponent<Light>().range = 150.0f * 0.0015f;
-                fakeMeteor.transform.Find("MeteorGlowLight").GetComponent<Light>().intensity = 1.0f;
+                fakeMeteor.transform.Find("MeteorGlowLight")?.GetComponent<Light>().range = 150.0f * 0.0015f;
+                fakeMeteor.transform.Find("MeteorGlowLight")?.GetComponent<Light>().intensity = 1.0f;
 
-                Transform meteorBody = fakeMeteor.transform.Find("Meteor_Whole");
-                if (meteorBody != null) meteorBody.gameObject.SetActive(true);
+                fakeMeteor.transform.Find("Meteor_Whole")?.gameObject.SetActive(true);
 
-                fakeMeteor.transform.parent = planetModels["Brittle Hollow"].transform;
+                fakeMeteor.transform.parent = planetModels["BrittleHollow"].transform;
 
                 hologramMeteors.Add(fakeMeteor);
                 actualMeteors.Add(meteor);
                 hologramMeteorsImpacted.Add(false);
-
             }
-        }
-
-        void Clone(ref GameObject field, GameObject toClone)
-        {
-            toClone.gameObject.SetActive(false);
-            field = Instantiate(toClone.gameObject);
-            if (field.TryGetComponent(out ProxyBody prox)) DestroyImmediate(prox);
-            field.gameObject.SetActive(true);
-            ShowGameObject(field);
-            toClone.gameObject.SetActive(true);
-        }
-
-        void ShowGameObject(GameObject obj)
-        {
-            var proxies = obj.GetComponentsInChildren<Transform>(true);
-
-            foreach (Transform proxy in proxies)
-            {
-                if (!proxy.TryGetComponent(out MeshRenderer rndr)) continue;
-                rndr.enabled = true;
-            }
-
-            obj.SetActive(true);
         }
 
         private void UpdateMeteors()
@@ -658,21 +427,24 @@ namespace ShipPlanetProjector
                     hologramMeteors.RemoveAt(index);
                     hologramMeteorsImpacted.RemoveAt(index);
                     index--;
+
                     continue;
                 }
+
+                MeteorController meteorController = actualMeteors[index].transform.GetComponent<MeteorController>();
 
                 Transform meteorBody = hologramMeteors[index].transform.Find("Meteor_Whole");
                 Transform meteorLight = hologramMeteors[index].transform.Find("MeteorGlowLight");
 
-                if (!actualMeteors[index].transform.GetComponent<MeteorController>().hasImpacted)
+                if (!meteorController.hasImpacted)
                 {
-                    if (!meteorBody.gameObject.activeInHierarchy) meteorBody?.gameObject.SetActive(true);
-                    if (!meteorLight.gameObject.activeInHierarchy) meteorLight?.gameObject.SetActive(true);
+                    if (!meteorBody.gameObject.activeInHierarchy) meteorBody.gameObject.SetActive(true);
+                    if (!meteorLight.gameObject.activeInHierarchy) meteorLight.gameObject.SetActive(true);
                     hologramMeteorsImpacted[index] = false;
                 }
 
                 // Check if effects are active
-                if (actualMeteors[index].transform.GetComponent<MeteorController>().hasImpacted && !hologramMeteorsImpacted[index])
+                if (meteorController.hasImpacted && !hologramMeteorsImpacted[index])
                 {
                     hologramMeteorsImpacted[index] = true;
 
@@ -693,8 +465,9 @@ namespace ShipPlanetProjector
                     }
                 }
 
-                hologramMeteors[index].transform.localPosition = actualPlanets["Brittle Hollow"].transform.InverseTransformPoint(actualMeteors[index].transform.position);
-                hologramMeteors[index].transform.rotation = actualMeteors[index].transform.rotation;
+                // Update the hologram meteor's position and rotation to match the actual meteor
+                hologramMeteors[index].transform.localPosition = actualPlanets["BrittleHollow"].transform.InverseTransformPoint(actualMeteors[index].transform.position);
+                hologramMeteors[index].transform.localRotation = Quaternion.Inverse(actualPlanets["BrittleHollow"].transform.rotation) * actualMeteors[index].transform.rotation;
                 hologramMeteors[index].transform.localScale = Vector3.one;
             }
         }
@@ -706,95 +479,60 @@ namespace ShipPlanetProjector
             // Check for planet focus change
             DetectPlanetFocusChange();
 
+            // Make sure the active planet exists
             if (!planetModels.ContainsKey(activePlanetName)) return;
 
-            if (activePlanetName == "Timber Hearth" || activePlanetName == "The Sun")
+            // Update all planets moons positions
+            foreach (KeyValuePair<string, GameObject> entry in planetModels)
             {
-                planetModels["Timber Hearth"].transform.localRotation = Quaternion.Euler(rotationTicker * 0.57296557431f, 90.0f, 270.0f);
+                GameObject planet = entry.Value;
+                string planetName = entry.Key;
 
-                var moonPivot = planetModels["Timber Hearth"].transform.Find("Moon_Pivot");
-                if (moonPivot != null)
+                // Skip the sun
+                if (planetName == "The Sun") continue;
+
+                // Check that the planet is actually a satellite
+                if (planet.transform.parent)
                 {
-                    moonPivot.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
-
-                    moonPivot.GetChild(0).localPosition = actualPlanets["Timber Hearth"].transform.InverseTransformPoint(actualPlanets["The Attlerock"].transform.position);
-                    moonPivot.GetChild(0).localRotation = Quaternion.Inverse(actualPlanets["Timber Hearth"].transform.rotation) * actualPlanets["The Attlerock"].transform.rotation;
-                }
-            }
-
-            if (activePlanetName == "Brittle Hollow" || activePlanetName == "The Sun")
-            {
-                planetModels["Brittle Hollow"].transform.localRotation = Quaternion.Euler(rotationTicker * 1.14594938724f, 90.0f, 270.0f);
-
-                var moonPivot = planetModels["Brittle Hollow"].transform.Find("VolcanicMoon_Pivot");
-                if (moonPivot != null)
-                {
-                    moonPivot.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
-
-                    moonPivot.GetChild(0).localPosition = actualPlanets["Brittle Hollow"].transform.InverseTransformPoint(actualPlanets["Hollow's Lantern"].transform.position);
-                    moonPivot.GetChild(0).localRotation = Quaternion.Inverse(actualPlanets["Brittle Hollow"].transform.rotation) * actualPlanets["Hollow's Lantern"].transform.rotation;
+                    if (planet.transform.parent.name.Contains("_Pivot")) continue;
                 }
 
-                foreach (MeteorLauncher launcher in meteorLaunchControllers)
+                if (actualPlanets.ContainsKey("The Sun")) HoloDisplayUtils.SetHologramRotation(planet, actualPlanets[planetName], actualPlanets["The Sun"]);
+                
+                // Check the planet's children for moon pivots
+                foreach (Transform child in planet.transform)
                 {
-                    CheckToAddMeteors(launcher._launchedMeteors);
-                }
-
-                UpdateMeteors();
-            }
-
-            if (activePlanetName == "Giant's Deep" || activePlanetName == "The Sun")
-            {
-                Transform orbitalProbeCannonPivot = planetModels["Giant's Deep"].transform.Find("OrbitalProbeCannon_Pivot");
-                if (orbitalProbeCannonPivot != null)
-                {
-                    //orbitalProbeCannonPivot.localRotation = Quaternion.Euler(0.0f, rotationTicker * 7.2f, 0.0f);
-
-                    orbitalProbeCannonPivot.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
-
-                    // Backside
-                    Transform probeCannonBackside = orbitalProbeCannonPivot.Find("OrbitalProbeCannon_Body");
-
-                    if (probeCannonBackside != null)
+                    if (child.name.Contains("_Pivot"))
                     {
-                        probeCannonBackside.localPosition = actualPlanets["Giant's Deep"].transform.InverseTransformPoint(actualPlanets["Orbital Probe Cannon"].transform.position);
-                        probeCannonBackside.localRotation = Quaternion.Inverse(actualPlanets["Giant's Deep"].transform.rotation) * actualPlanets["Orbital Probe Cannon"].transform.rotation;
-                    }
+                        child.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
 
-                    // Barrel
-                    Transform probeCannonBarrel = orbitalProbeCannonPivot.Find("CannonBarrel_Body");
-
-                    if (probeCannonBarrel != null)
-                    {
-                        probeCannonBarrel.localPosition = actualPlanets["Giant's Deep"].transform.InverseTransformPoint(actualPlanets["Orbital Probe Cannon Barrel"].transform.position);
-                        probeCannonBarrel.localRotation = Quaternion.Inverse(actualPlanets["Giant's Deep"].transform.rotation) * actualPlanets["Orbital Probe Cannon Barrel"].transform.rotation;
-                    }
-
-                    // Muzzle
-                    Transform probeCannonMuzzle = orbitalProbeCannonPivot.Find("CannonMuzzle_Body");
-
-                    if (probeCannonMuzzle != null)
-                    {
-                        probeCannonMuzzle.localPosition = actualPlanets["Giant's Deep"].transform.InverseTransformPoint(actualPlanets["Orbital Probe Cannon Muzzle"].transform.position);
-                        probeCannonMuzzle.localRotation = Quaternion.Inverse(actualPlanets["Giant's Deep"].transform.rotation) * actualPlanets["Orbital Probe Cannon Muzzle"].transform.rotation;
+                        // Loop through all the children of the pivot and update their positions and rotations
+                        foreach (Transform satellite in child.transform)
+                        {
+                            HoloDisplayUtils.SetHologramPositionAndRotation(satellite.gameObject, actualPlanets[satellite.name], actualPlanets[planetName]);
+                        }
                     }
                 }
             }
+
+            // Check for new meteors to add to the display
+            foreach (MeteorLauncher launcher in meteorLaunchControllers)
+            {
+                CheckToAddMeteors(launcher._launchedMeteors);
+            }
+
+            // Update meteor positions
+            UpdateMeteors();
 
             if (activePlanetName == "Twins" || activePlanetName == "The Sun")
             {
-                //planetModels["Twins"].transform.localRotation = Quaternion.Euler(0.0f, 0.0f, rotationTicker * 6.54545454545f);
-
                 Transform ashTwin = planetModels["Twins"].transform.Find("AshTwin");
                 Transform emberTwin = planetModels["Twins"].transform.Find("EmberTwin");
 
                 if (ashTwin != null && emberTwin != null)
                 {
-                    ashTwin.localPosition = actualPlanets["Twins"].transform.InverseTransformPoint(actualPlanets["Ash Twin"].transform.position);
-                    ashTwin.localRotation = Quaternion.Inverse(actualPlanets["Twins"].transform.rotation) * actualPlanets["Ash Twin"].transform.rotation;
-
-                    emberTwin.localPosition = actualPlanets["Twins"].transform.InverseTransformPoint(actualPlanets["Ember Twin"].transform.position);
-                    emberTwin.localRotation = Quaternion.Inverse(actualPlanets["Twins"].transform.rotation) * actualPlanets["Ember Twin"].transform.rotation;
+                    HoloDisplayUtils.SetHologramPositionAndRotation(ashTwin.gameObject, actualPlanets["AshTwin"], actualPlanets["Twins"]);
+                    HoloDisplayUtils.SetHologramPositionAndRotation(emberTwin.gameObject, actualPlanets["EmberTwin"], actualPlanets["Twins"]);
 
                     float ashSandRadius = sandControllerAT.GetRadius() * 0.030303f;
                     ashTwinSand.transform.localScale = new Vector3(ashSandRadius, ashSandRadius, ashSandRadius);
@@ -825,49 +563,25 @@ namespace ShipPlanetProjector
                 // Giant's Deep     1100
                 // Quantum Moon     150
 
-                planetModels["Twins"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Twins"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Twins"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Twins"].transform.position);
-                planetModels["Twins"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Twins"].transform.rotation;
+                // Loop through each planet model and update its position and rotation to
+                // match the actual planet's position and rotation relative to the sun
+                foreach (KeyValuePair<string, GameObject> entry in planetModels)
+                {
+                    GameObject planet = entry.Value;
+                    string planetName = entry.Key;
 
-                planetModels["Timber Hearth"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Timber Hearth"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Timber Hearth"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Timber Hearth"].transform.position);
-                planetModels["Timber Hearth"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Timber Hearth"].transform.rotation;
+                    // Skip the sun
+                    if (planetName == "The Sun") continue;
 
-                planetModels["Brittle Hollow"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Brittle Hollow"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Brittle Hollow"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Brittle Hollow"].transform.position);
-                planetModels["Brittle Hollow"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Brittle Hollow"].transform.rotation;
+                    planet.transform.parent = planetModels["The Sun"].transform;
+                    planet.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
 
-                planetModels["Giant's Deep"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Giant's Deep"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Giant's Deep"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Giant's Deep"].transform.position);
-                planetModels["Giant's Deep"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Giant's Deep"].transform.rotation;
-
-                planetModels["Dark Bramble"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Dark Bramble"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Dark Bramble"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Dark Bramble"].transform.position);
-                planetModels["Dark Bramble"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Dark Bramble"].transform.rotation;
-
-                planetModels["White Hole"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["White Hole"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["White Hole"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["White Hole"].transform.position);
-                planetModels["White Hole"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["White Hole"].transform.rotation;
-
-                planetModels["The Interloper"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["The Interloper"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["The Interloper"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["The Interloper"].transform.position);
-                planetModels["The Interloper"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["The Interloper"].transform.rotation;
+                    HoloDisplayUtils.SetHologramPositionAndRotation(planet, actualPlanets[planetName], actualPlanets["The Sun"]);
+                }
 
                 // Check the comet is still alive
-                if (!actualPlanets["The Interloper"].activeInHierarchy) planetModels["The Interloper"].SetActive(false);
-                else planetModels["The Interloper"].SetActive(true);
-
-                planetModels["Quantum Moon"].transform.parent = planetModels["The Sun"].transform;
-                planetModels["Quantum Moon"].transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-                planetModels["Quantum Moon"].transform.localPosition = actualPlanets["The Sun"].transform.InverseTransformPoint(actualPlanets["Quantum Moon"].transform.position);
-                planetModels["Quantum Moon"].transform.localRotation = Quaternion.Inverse(actualPlanets["The Sun"].transform.rotation) * actualPlanets["Quantum Moon"].transform.rotation;
+                if (!actualPlanets["Comet"].activeInHierarchy) planetModels["Comet"].SetActive(false);
+                else planetModels["Comet"].SetActive(true);
             }
 
             // Update the current local position of the ship relative to the planet on the display
@@ -943,9 +657,8 @@ namespace ShipPlanetProjector
             shipTransform = Locator.GetShipTransform();
 
             // Update the model ship's postion and rotation to match the actual ship's position and rotation relative to the selected planet
-            playerShipModel.transform.localPosition = planetBody.transform.InverseTransformPoint(shipTransform.position);
-            playerShipModel.transform.localRotation = planetBody.transform.InverseTransformRotation(shipTransform.rotation);
             playerShipModel.transform.localScale = new Vector3(6.0f, 6.0f, 6.0f);
+            HoloDisplayUtils.SetHologramPositionAndRotation(playerShipModel, shipTransform.gameObject, planetBody);
 
             // Only display the ship if the holomap is powered
             if (displayPowered && planetBody.activeInHierarchy)
@@ -1013,28 +726,61 @@ namespace ShipPlanetProjector
         {
             string[] step_names = path.Split('/');
 
+            // Get the first step in the path's corresponding GameObject
             GameObject go = GameObject.Find(step_names[0]);
 
+            // If the first step doesn't exist then return null
             if (go == null)
             {
                 modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {step_names[0]}", MessageType.Error);
                 return null;
             }
 
+            // Iterate through the remaining steps in the path and find the corresponding child GameObject at each step
             for (int i = 1; i < step_names.Length - 1; i++)
             {
                 Transform next_step = go.transform.Find(step_names[i]);
 
+                // If the next step doesn't exist then return null
                 if (next_step == null)
                 {
                     modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {step_names[i]}", MessageType.Error);
                     return null;
                 }
 
+                // Update the current GameObject to the next step in the path
                 go = next_step.gameObject;
             }
 
+            // Return the final GameObject
             return go;
+        }
+
+        // Credit to MegaPiggy for the cloning method, which allows us to clone the proxy bodies so they
+        // can be used as holograms in the ship.
+        // The Clone and showProxy functons are from AdvancedMinimap.cs file in the General Enhancements mod:
+        // https://github.com/MegaPiggy/SBtT.GeneralEnhancements/
+        void Clone(ref GameObject field, GameObject toClone)
+        {
+            toClone.gameObject.SetActive(false);
+            field = Instantiate(toClone.gameObject);
+            if (field.TryGetComponent(out ProxyBody prox)) DestroyImmediate(prox);
+            field.gameObject.SetActive(true);
+            ShowGameObject(field);
+            toClone.gameObject.SetActive(true);
+        }
+
+        void ShowGameObject(GameObject obj)
+        {
+            var proxies = obj.GetComponentsInChildren<Transform>(true);
+
+            foreach (Transform proxy in proxies)
+            {
+                if (!proxy.TryGetComponent(out MeshRenderer rndr)) continue;
+                rndr.enabled = true;
+            }
+
+            obj.SetActive(true);
         }
 
     }

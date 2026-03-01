@@ -6,7 +6,7 @@
     "planetAtmospheres": {
       "title": "Planet Atmospheres",
       "type": "selector",
-      "value": "Enabled",
+      "value": "Disabled",
       "options": [
         "Enabled",
         "Disabled"

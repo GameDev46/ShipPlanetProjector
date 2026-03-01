@@ -27,7 +27,6 @@ namespace ShipPlanetProjector
         public GameObject hologramWhiteHole;
 
         IModConsole modConsole;
-
         public void Setup(ProxyBrittleHollowFragment proxyBrittleHollowFragment, GameObject BH, GameObject WH, IModConsole con)
         {
             renderers = proxyBrittleHollowFragment._renderers;
