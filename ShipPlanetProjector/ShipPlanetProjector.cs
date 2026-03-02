@@ -92,24 +92,100 @@ namespace ShipPlanetProjector
             GameObject proxyManager = GameObject.Find("DistantProxyManager");
             var distanceProxies = proxyManager.GetComponent<DistantProxyManager>()._proxies;
 
+            List<GameObject> proxyGameObjects = new List<GameObject>();
+
+            // Format the proxies
+            foreach (var distanceProxy in distanceProxies)
+            {
+                // Get the corresponding cloned proxy body from the scene
+                GameObject proxyGO = GameObject.Find(distanceProxy.proxyPrefab.name + "(Clone)");
+                ProxyBody proxy = proxyGO?.GetComponent<ProxyBody>();
+
+                if (proxy) proxyGameObjects.Add(proxyGO);
+            }
+
+            // Attempt to locate the NHProxy component at runtime
+            Type nhProxyType = AppDomain.CurrentDomain
+            .GetAssemblies()
+            .SelectMany(a => a.GetTypes())
+            .FirstOrDefault(t => t.Name == "NHProxy");
+
+            if (nhProxyType != null)
+            {
+                // Grab all NHProxy instances
+                var allNHProxies = GameObject.FindObjectsOfType(nhProxyType);
+
+                foreach (var proxy in allNHProxies)
+                {
+                    proxyGameObjects.Add(((Component)proxy).transform.gameObject);
+                }
+            }
+
             // Clear the planet models and actual planets dictionaries
             planetModels = new Dictionary<string, GameObject>();
             actualPlanets = new Dictionary<string, GameObject>();
 
             // Loop through all the proxies and look for the main game planets and moons
-            foreach (var distanceProxy in distanceProxies)
+            foreach (var proxyObj in proxyGameObjects)
             {
-                // Get the corresponding cloned proxy body from the scene
-                ProxyBody proxy = GameObject.Find(distanceProxy.proxyPrefab.name + "(Clone)")?.GetComponent<ProxyBody>();
+                // Get the proxyBody component
+                ProxyBody proxy = proxyObj?.GetComponent<ProxyBody>();
 
-                // If there is no corresponding proxy body in the scene, skip this proxy
-                if (!proxy) continue;
+                // Track if the proxy was originally from NH
+                bool wasNHProxy = false;
+
+                // If there is no corresponding proxy body in the scene, then check for NHProxy
+                if (!proxy)
+                {
+                    // If NHProxy doesn't exist then skip
+                    if (nhProxyType == null) continue;
+
+                    // Get the NHProxy component
+                    Component nhProxy = proxyObj.GetComponent(nhProxyType);
+                    if (nhProxy == null) continue;
+
+                    // Attempt to get the "planet" property of NHProxy
+                    PropertyInfo planetProp = nhProxyType.GetProperty(
+                        "planet",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                    );
+
+                    if (planetProp == null) continue;
+
+                    GameObject realPlanet = planetProp.GetValue(nhProxy) as GameObject;
+
+                    if (realPlanet == null) continue;
+
+                    // Attempt to get the "baseRealObjectDiameter" property of NHProxy
+                    PropertyInfo objDiameterProp = nhProxyType.GetProperty(
+                        "baseRealObjectDiameter",
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                    );
+
+                    if (objDiameterProp == null) continue;
+
+                    object value = objDiameterProp.GetValue(nhProxy);
+                    if (value == null) continue;
+
+                    wasNHProxy = true;
+
+                    float realPlanetDiameter = (float)value;
+
+                    // Remove the NHProxy component
+                    Destroy(nhProxy);
+
+                    // Recreate the NHProxy component as a ProxyBody component
+                    proxy = proxyObj.AddComponent<ProxyBody>();
+                    proxy.name = proxyObj.name.Replace("_Proxy", "");
+                    proxy._realObjectTransform = realPlanet.transform;
+                    proxy._realObjectDiameter = realPlanetDiameter;
+                }
 
                 // Get the proxy name
                 string proxyName = proxy.name;
 
                 // Get the planet name by removing the proxy suffix
-                string planetName = proxyName.Replace("_DistantProxy", "").Replace("(Clone)", "");
+                string planetName = proxyName.Replace("_DistantProxy", "").Replace("(Clone)", "").Replace("_Proxy", "");
 
                 // Clone the proxy model
                 GameObject proxyModel = null;
@@ -117,6 +193,15 @@ namespace ShipPlanetProjector
 
                 // Name the proxy model after the planet
                 proxyModel.name = planetName;
+
+                // Track whether the proxy is parented to another proxy
+                HoloDisplayUtils proxyHDU = proxyModel.AddComponent<HoloDisplayUtils>();
+                proxyHDU.hasParentPlanet = false;
+                proxyHDU.actualPlanetDiameter = proxy._realObjectDiameter;
+                proxyHDU.diameterMultiplier = 1.0f;
+                proxyHDU.moons = new List<GameObject>();
+
+                if (wasNHProxy) proxyHDU.diameterMultiplier = 2.0f;
 
                 // Remove the ProxyOrbiter component from any moons
                 foreach (ProxyOrbiter po in proxyModel.GetComponentsInChildren<ProxyOrbiter>())
@@ -128,14 +213,21 @@ namespace ShipPlanetProjector
                     po.transform.name = moonName;
 
                     // Get the actual moon's model
-                    GameObject moonModel = po._originalBody.gameObject;
+                    GameObject actualModel = po._originalBody.gameObject;
 
                     // Reset proxy moon's parent
                     po.transform.parent.localPosition = Vector3.zero;
                     po.transform.parent.localRotation = Quaternion.identity;
 
+                    // Record that the moon is parented to another proxy (used for positioning)
+                    HoloDisplayUtils moonHDU = po.transform.gameObject.AddComponent<HoloDisplayUtils>();
+                    moonHDU.hasParentPlanet = true;
+
                     // Add the moon model to the actual planets dictionary
-                    if (moonModel) actualPlanets[moonName] = moonModel;
+                    if (actualModel) actualPlanets[moonName] = actualModel;
+
+                    // Add the moon to moons
+                    proxyHDU.moons.Add(po.transform.gameObject);
 
                     // Remove the proxy orbiter component
                     DestroyImmediate(po);
@@ -143,10 +235,6 @@ namespace ShipPlanetProjector
 
                 // Get the proxy's corresponding actual planet model
                 GameObject planetModel = proxy._realObjectTransform.gameObject;
-
-                // This is later changed in PlanetDisplay.cs but it allows the model to be scaled
-                // to fit within the ship's cabin
-                proxyModel.transform.localScale = Vector3.one * proxy._realObjectDiameter;
 
                 // If there is no corresponding actual planet model, skip this proxy
                 if (!planetModel) continue;
@@ -159,47 +247,57 @@ namespace ShipPlanetProjector
             }
 
             // Group the twins together to act as the center of mass
-            if (planetModels["EmberTwin"] != null && planetModels["AshTwin"] != null)
+            if (planetModels.ContainsKey("EmberTwin") && planetModels.ContainsKey("AshTwin"))
             {
                 GameObject centerPivot = new GameObject("Twins Pivot");
 
-                Transform sandStreamFromAshTwin = planetModels["AshTwin"].transform.Find("SandColumnRoot");
-                float twinsDistance = 500.0f;
-
-                planetModels["AshTwin"].transform.parent = centerPivot.transform;
-                planetModels["AshTwin"].transform.localPosition = new Vector3(0.0f, twinsDistance * 0.5f, 0.0f);
-
-                planetModels["EmberTwin"].transform.parent = centerPivot.transform;
-                planetModels["EmberTwin"].transform.localPosition = new Vector3(0.0f, -twinsDistance * 0.5f, 0.0f);
+                HoloDisplayUtils pivotHDU = centerPivot.AddComponent<HoloDisplayUtils>();
+                pivotHDU.hasParentPlanet = false;
+                pivotHDU.actualPlanetDiameter = 600.0f;
 
                 planetModels["Twins"] = centerPivot;
                 actualPlanets["Twins"] = GameObject.Find("FocalBody");
             }
 
-            // Create the sun as a child of the solar system node
-            GameObject systemContainer = new GameObject("The Sun");
+            if (planetModels.ContainsKey("TimberHearth"))
+            {
+                // Create the sun as a child of the solar system node
+                GameObject sunHolder = new GameObject();
+                sunHolder.transform.name = "The Sun";
 
-            GameObject sun = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sun.transform.parent = systemContainer.transform;
-            sun.transform.localPosition = new Vector3(0.0f, 0.0f, 0.0f);
-            sun.transform.localScale = new Vector3(3000.0f, 3000.0f, 3000.0f);
-            sun.GetComponent<SphereCollider>().enabled = false;
+                HoloDisplayUtils sunHDU = sunHolder.AddComponent<HoloDisplayUtils>();
+                sunHDU.hasParentPlanet = false;
+                sunHDU.actualPlanetDiameter = 3000.0f;
 
-            sun.transform.name = "Sun";
+                GameObject sun = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                sun.transform.name = "Sun";
+                sun.transform.SetParent(sunHolder.transform, false);
+                sun.transform.localPosition = Vector3.zero;
+                sun.transform.localRotation = Quaternion.identity;
+                sun.transform.localScale = Vector3.one * 3000.0f;
+                sun.GetComponent<SphereCollider>().enabled = false;
 
-            // Create and set the material for the sphere
-            Material sunMaterial = new Material(Shader.Find("Standard"));
-            sunMaterial.EnableKeyword("_EMISSION");
-            sunMaterial.SetColor("_EmissionColor", new Color(1f, 0.6f, 0f) * 1.5f);
-            sun.GetComponent<MeshRenderer>().material = sunMaterial;
+                // Create and set the material for the sphere
+                Material sunMaterial = new Material(Shader.Find("Standard"));
+                sunMaterial.EnableKeyword("_EMISSION");
+                sunMaterial.SetColor("_EmissionColor", new Color(1f, 0.6f, 0f) * 1.5f);
+                sun.GetComponent<MeshRenderer>().material = sunMaterial;
 
-            // Store the system container
-            planetModels["The Sun"] = systemContainer;
+                // Store the system container
+                planetModels["The Sun"] = sunHolder;
+            }
 
             ModHelper.Console.WriteLine($"Created {planetModels.Count} planet models", MessageType.Success);
 
             // Call the planet display manager to setup the actual display
             planetDisplay = PlanetDisplay.Create(planetModels, actualPlanets, shipCabinTransform, ModHelper.Console);
+
+            StartCoroutine(WaitToUpdateSettings());
+        }
+
+        IEnumerator WaitToUpdateSettings()
+        {
+            yield return new WaitForSeconds(0.5f);
 
             // Apply the current config settings
             bool atmospheresEnabled = ModHelper.Config.GetSettingsValue<string>("planetAtmospheres") == "Enabled";

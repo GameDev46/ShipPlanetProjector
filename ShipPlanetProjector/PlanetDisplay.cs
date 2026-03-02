@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.InputSystem.HID;
 using UnityEngine.UI;
 using static UnityEngine.GraphicsBuffer;
 
@@ -18,40 +19,38 @@ namespace ShipPlanetProjector
 {
     public class PlanetDisplay : MonoBehaviour
     {
-        Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
-        Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
+        private Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
+        private Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
 
-        InteractReceiver powerReciever;
+        private InteractReceiver powerReciever;
 
-        IModConsole modConsole;
+        private IModConsole modConsole;
 
-        SandLevelController sandControllerET;
-        SandLevelController sandControllerAT;
-        SandLevelController lavaControllerHL;
+        private GameObject mapModeObj;
 
-        GameObject ashTwinSand;
-        GameObject emberTwinSand;
+        private GameObject playerShipModel;
+        private Transform shipTransform;
 
-        GameObject mapModeObj;
+        private List<string> assetBundles = new List<string>();
 
-        GameObject playerShipModel;
-        Transform shipTransform;
+        private GameObject shipModelIndicator;
+        private Material shipModelIndicatorMat;
+        private bool isAnimatingShipIndicator = false;
 
-        GameObject shipModelIndicator;
-        Material shipModelIndicatorMat;
-        bool isAnimatingShipIndicator = false;
+        private List<MeteorLauncher> meteorLaunchControllers = new List<MeteorLauncher>();
 
-        public List<MeteorLauncher> meteorLaunchControllers = new List<MeteorLauncher>();
+        private List<GameObject> hologramMeteors = new List<GameObject>();
+        private List<GameObject> actualMeteors = new List<GameObject>();
+        private List<bool> hologramMeteorsImpacted = new List<bool>();
 
-        public List<GameObject> hologramMeteors = new List<GameObject>();
-        public List<GameObject> actualMeteors = new List<GameObject>();
-        public List<bool> hologramMeteorsImpacted = new List<bool>();
+        private bool displayPowered = false;
 
-        bool displayPowered = false;
+        private string activePlanetName = "TimberHearth";
+        private static string SAFE_PLANET_NAME = "";
 
-        string activePlanetName = "TimberHearth";
-
-        float rotationTicker = 0.0f;
+        // The maximum distance from the currently focused planet another object can be
+        // before it is hidden (only allow planets inside the ship cabin to be visible)
+        private const float DISPLAY_CUTOFF_DIST = 3.0f;
 
         public static PlanetDisplay Create(Dictionary<string, GameObject> planetModels, Dictionary<string, GameObject> actualPlanets, Transform parent, IModConsole modHelperConsole)
         {
@@ -68,11 +67,23 @@ namespace ShipPlanetProjector
             go.transform.localPosition = new Vector3(0.0f, 2.3f, 0.0f);
             go.transform.localRotation = Quaternion.identity;
 
+            foreach (KeyValuePair<string, GameObject> entry in planetModels)
+            {
+                SAFE_PLANET_NAME = entry.Key;
+                if (SAFE_PLANET_NAME == "TimberHearth") break;
+            }
+
+            // Set the scale of the display based on the current focused planet
+            HoloDisplayUtils.SetDisplayScale(go, planetModels[SAFE_PLANET_NAME], 0.002f);
+
             return planetController;
         }
 
         public void Start()
         {
+            // Make sure the active planet exists in planet models
+            activePlanetName = SAFE_PLANET_NAME;
+
             // Get the ship's cockpit module
             shipTransform = Locator.GetShipTransform();
             var shipCockpit = shipTransform.Find("Module_Cockpit/Lights_Cockpit");
@@ -96,19 +107,6 @@ namespace ShipPlanetProjector
             powerReciever.EnableInteraction();
             powerReciever.ChangePrompt("Toggle On HoloMap");
             powerReciever.OnPressInteract += ToggleDisplayPower;
-
-            try {
-
-                // Try to locate the sand controllers for the twins
-                sandControllerET = Locator._hourglassTwinA.GetComponentInChildren<SandLevelController>();
-                sandControllerAT = Locator._hourglassTwinB.GetComponentInChildren<SandLevelController>();
-                // Try to locate the lava controller for hollow's lantern
-                lavaControllerHL = GameObject.Find("VolcanicMoon_Body/MoltenCore_VM").GetComponent<SandLevelController>();
-            }
-            catch
-            {
-                modConsole.WriteLine("Failed to locate sand controllers for Ember and Ash Twin", MessageType.Error);
-            }
 
             try
             {
@@ -152,40 +150,39 @@ namespace ShipPlanetProjector
                 GameObject planet = entry.Value;
 
                 // Setup the planet model
-                HoloDisplayUtils.SetupPlanet(planet, transform);
+                HoloDisplayUtils.SetupPlanet(planet, transform, transform.localScale.x);
 
-                if (entry.Key == "Twins")
+                if (entry.Key == "AshTwin")
                 {
-                    planet.transform.localRotation = Quaternion.Euler(0.0f, 90.0f, 270.0f);
+                    Transform ashTwinRoot = planetModels["AshTwin"].transform.Find("SandSphereRoot");
+                    Material sandMat = Instantiate(ashTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
 
-                    Transform ashTwin = planet.transform.Find("AshTwin");
-                    ashTwin.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
-
-                    Transform ashTwinRoot = ashTwin.Find("SandSphereRoot");
-                    Material sandMat = ashTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0];
-
-                    ashTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    ashTwinSand.transform.parent = ashTwinRoot;
+                    GameObject ashTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    ashTwinSand.name = "AshTwin Sand";
+                    ashTwinSand.transform.parent = planet.transform;
                     ashTwinSand.transform.localPosition = Vector3.zero;
                     ashTwinSand.GetComponent<SphereCollider>().enabled = false;
                     //ashTwinSand.GetComponent<Renderer>().material = sandMat;
 
-                    float ashSandRadius = sandControllerAT.GetRadius() * 0.030303f;
-                    ashTwinSand.transform.localScale = new Vector3(ashSandRadius, ashSandRadius, ashSandRadius);
+                    SandLevelController sandControllerAT = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
+                    //float ashSandRadius = sandControllerAT.GetRadius() * 0.030303f;
+                    ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
+                }
 
-                    Transform emberTwin = planet.transform.Find("EmberTwin");
-                    emberTwin.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
+                if (entry.Key == "EmberTwin")
+                {
+                    Transform emberTwinRoot = planetModels["EmberTwin"].transform.Find("SandSphereRoot");
+                    Material sandMat = Instantiate(emberTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
 
-                    Transform emberTwinRoot = emberTwin.Find("SandSphereRoot");
-
-                    emberTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    emberTwinSand.transform.parent = emberTwinRoot;
+                    GameObject emberTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    emberTwinSand.name = "EmberTwin Sand";
+                    emberTwinSand.transform.parent = planet.transform;
                     emberTwinSand.transform.localPosition = Vector3.zero;
                     emberTwinSand.GetComponent<SphereCollider>().enabled = false;
                     //emberTwinSand.GetComponent<Renderer>().material = sandMat;
 
-                    float emberSandRadius = sandControllerET.GetRadius() * 0.030303f * 2.0f;
-                    emberTwinSand.transform.localScale = new Vector3(emberSandRadius, emberSandRadius, emberSandRadius);
+                    SandLevelController sandControllerET = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
+                    emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
                 }
 
                 // Disable the planet by default
@@ -194,6 +191,7 @@ namespace ShipPlanetProjector
 
             if (planetModels.ContainsKey("BrittleHollow"))
             {
+
                 GameObject brittleHollow = actualPlanets["BrittleHollow"];
                 GameObject whiteHole = actualPlanets["WhiteHole"];
 
@@ -227,57 +225,8 @@ namespace ShipPlanetProjector
 
         public void UpdateSettings(bool atmospheresEnabled, bool cometTrailsEnabled)
         {
-
-            if (planetModels.ContainsKey("Twins"))
-            {
-                // ET atmosphere
-                Renderer atmopshereRendererAT = planetModels["Twins"].transform.Find("AshTwin")?.Find("Atmosphere_TowerTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererAT) atmopshereRendererAT.enabled = atmospheresEnabled;
-
-                // AT atmosphere
-                Renderer atmopshereRendererET = planetModels["Twins"].transform.Find("EmberTwin")?.Find("Atmosphere_CaveTwin")?.Find("AtmoSphere")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererET) atmopshereRendererET.enabled = atmospheresEnabled;
-            }
-
-            if (planetModels.ContainsKey("TimberHearth"))
-            {
-                // TH atmosphere
-                Renderer atmopshereRendererTH = planetModels["TimberHearth"].transform.transform.Find("Atmosphere_TH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererTH) atmopshereRendererTH.enabled = atmospheresEnabled;
-            }
-
-            if (planetModels.ContainsKey("BrittleHollow"))
-            {
-                // BH atmosphere
-                Renderer atmopshereRendererBH = planetModels["BrittleHollow"].transform.transform.Find("Atmosphere_BH")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererBH) atmopshereRendererBH.enabled = atmospheresEnabled;
-            }
-
-            if (planetModels.ContainsKey("GiantsDeep"))
-            {
-                // GD atmosphere
-                Renderer atmopshereRendererGD = planetModels["GiantsDeep"].transform.transform.Find("Atmosphere_GD")?.Find("Atmosphere_LOD3")?.GetComponent<MeshRenderer>();
-                if (atmopshereRendererGD) atmopshereRendererGD.enabled = atmospheresEnabled;
-            }
-
-            if (planetModels.ContainsKey("Comet"))
-            {
-                // Get the Interloper tail holder
-                Transform tailEffectsParent = planetModels["Comet"].transform.Find("Effects_CO")?.Find("Effects_CO_TailMeshes");
-
-                // If it exists then loop through each tail and toggle the mesh renderer based on the comet trails setting
-                if (tailEffectsParent)
-                {
-                    for (int i = 0; i < tailEffectsParent.childCount; i++)
-                    {
-                        Transform tail = tailEffectsParent.GetChild(i);
-                        MeshRenderer tailMeshRenderer = tail.GetComponent<MeshRenderer>();
-
-                        // Toggle the tail mesh renderer based on the comet trails setting
-                        if (tailMeshRenderer) tailMeshRenderer.enabled = cometTrailsEnabled;
-                    }
-                }
-            }
+            // Update the planet settings
+            HoloDisplayUtils.UpdatePlanetSettings(gameObject, atmospheresEnabled, cometTrailsEnabled);
 
             modConsole.WriteLine($"Updated settings: atmospheresEnabled={atmospheresEnabled}, cometTrailsEnabled={cometTrailsEnabled}", MessageType.Success);
         }
@@ -308,6 +257,9 @@ namespace ShipPlanetProjector
                 ShipLogAstroObject currentLogPlanet = shipLogMode._astroObjects[selectedPlanetRow][selectedPlanetIndex];
                 string focusedPlanet = currentLogPlanet.name;
 
+                // Format (for NH)
+                focusedPlanet = focusedPlanet.Replace("_ShipLog", "");
+
                 // Fix some of the names to match the planet models
                 if (focusedPlanet == "CaveTwin" || focusedPlanet == "TowerTwin") focusedPlanet = "Twins";
                 if (focusedPlanet == "Interloper") focusedPlanet = "Comet";
@@ -319,23 +271,11 @@ namespace ShipPlanetProjector
                 // Check that the planet is different to the last seleced planet
                 if (focusedPlanet == activePlanetName) return;
 
-                // If the previous active planet was the sun then reset all the planets positions
-                if (activePlanetName == "The Sun") ResetModelPlanets();
-
                 // Set the active planet to the currently focused planet
                 activePlanetName = focusedPlanet;
 
-                // Switch the currently displayed planet
-                SwitchDisplayedPlanet(activePlanetName);
-            }
-        }
-
-        private void ResetModelPlanets()
-        {
-            foreach (KeyValuePair<string, GameObject> entry in planetModels)
-            {
-                GameObject planet = entry.Value;
-                HoloDisplayUtils.SetupPlanet(planet, transform, false);
+                // Set the scale of the display based on the current focused planet
+                HoloDisplayUtils.SetDisplayScale(transform.gameObject, planetModels[activePlanetName], transform.localScale.x);
             }
         }
 
@@ -345,26 +285,18 @@ namespace ShipPlanetProjector
 
             if (displayPowered) {
                 powerReciever.ChangePrompt("Toggle Off HoloMap");
-                SwitchDisplayedPlanet(activePlanetName); // Display the active planet
             }
             else {
                 powerReciever.ChangePrompt("Toggle On HoloMap");
-                SwitchDisplayedPlanet(""); // Hide the displayed planet
             }
 
-            powerReciever.ResetInteraction();
-        }
-
-        private void SwitchDisplayedPlanet(string planetName)
-        {
             foreach (KeyValuePair<string, GameObject> entry in planetModels)
             {
                 GameObject planet = entry.Value;
-                planet.SetActive(false);
-
-                // If the current planet is selected then re-enable it
-                if ((entry.Key == planetName || planetName == "The Sun") && displayPowered) planet.SetActive(true);
+                planet.SetActive(displayPowered);
             }
+
+            powerReciever.ResetInteraction();
         }
 
         private void CheckToAddMeteors(List<MeteorController> meteorControllers)
@@ -402,7 +334,7 @@ namespace ShipPlanetProjector
 
                 fakeMeteor.transform.Find("Meteor_Whole")?.gameObject.SetActive(true);
 
-                fakeMeteor.transform.parent = planetModels["BrittleHollow"].transform;
+                fakeMeteor.transform.parent = transform;
 
                 hologramMeteors.Add(fakeMeteor);
                 actualMeteors.Add(meteor);
@@ -466,15 +398,32 @@ namespace ShipPlanetProjector
                 }
 
                 // Update the hologram meteor's position and rotation to match the actual meteor
-                hologramMeteors[index].transform.localPosition = actualPlanets["BrittleHollow"].transform.InverseTransformPoint(actualMeteors[index].transform.position);
-                hologramMeteors[index].transform.localRotation = Quaternion.Inverse(actualPlanets["BrittleHollow"].transform.rotation) * actualMeteors[index].transform.rotation;
+                hologramMeteors[index].transform.localPosition = actualPlanets[activePlanetName].transform.InverseTransformPoint(actualMeteors[index].transform.position);
+                hologramMeteors[index].transform.localRotation = Quaternion.Inverse(actualPlanets[activePlanetName].transform.rotation) * actualMeteors[index].transform.rotation;
                 hologramMeteors[index].transform.localScale = Vector3.one;
+
+                // Hide meteors which are outside the ship's cabin
+                float mag = hologramMeteors[index].transform.localPosition.magnitude * transform.localScale.x;
+                hologramMeteors[index].SetActive(mag <= DISPLAY_CUTOFF_DIST && displayPowered ? true : false);
             }
         }
 
         public void Update()
         {
             if (planetModels == null) return;
+
+            /*
+             * Rather than hiding non-active planets, hide planets which are too far from the ship
+             * and position all planets relative to the currently selected planet, fixes an issue
+             * where moon's may not be children of the planet proxy bodies
+             */
+
+            // Sun              3000
+            // Twins            
+            // Timber Hearth    450   
+            // Brittle Hollow   450
+            // Giant's Deep     1100
+            // Quantum Moon     150
 
             // Check for planet focus change
             DetectPlanetFocusChange();
@@ -488,31 +437,63 @@ namespace ShipPlanetProjector
                 GameObject planet = entry.Value;
                 string planetName = entry.Key;
 
-                // Skip the sun
-                if (planetName == "The Sun") continue;
+                HoloDisplayUtils planetHDU = planet.GetComponent<HoloDisplayUtils>();
 
-                // Check that the planet is actually a satellite
-                if (planet.transform.parent)
+                // Skip parented moons as they are postioned by their parent planet
+                if (planetHDU.hasParentPlanet) continue;
+
+                if (planet.name == activePlanetName)
                 {
-                    if (planet.transform.parent.name.Contains("_Pivot")) continue;
+                    planet.transform.localPosition = Vector3.zero;
+                    planet.transform.localRotation = Quaternion.identity;
+                    //if (actualPlanets.ContainsKey("The Sun")) HoloDisplayUtils.SetHologramRotation(planet, actualPlanets[planetName], actualPlanets["The Sun"]);
                 }
 
-                if (actualPlanets.ContainsKey("The Sun")) HoloDisplayUtils.SetHologramRotation(planet, actualPlanets[planetName], actualPlanets["The Sun"]);
-                
-                // Check the planet's children for moon pivots
-                foreach (Transform child in planet.transform)
+                // Position non-focues planets relative to the focused planet
+                if (planet.name != activePlanetName)
                 {
-                    if (child.name.Contains("_Pivot"))
-                    {
-                        child.transform.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
+                    HoloDisplayUtils.SetHologramPositionAndRotation(planet, actualPlanets[planetName], actualPlanets[activePlanetName]);
+                }
 
-                        // Loop through all the children of the pivot and update their positions and rotations
-                        foreach (Transform satellite in child.transform)
-                        {
-                            HoloDisplayUtils.SetHologramPositionAndRotation(satellite.gameObject, actualPlanets[satellite.name], actualPlanets[planetName]);
-                        }
+                // Update any of the planet's parented moons (non-parented moons are positioned seperately
+                foreach (GameObject moon in planetHDU.moons)
+                {
+                    moon.transform.parent.localRotation = Quaternion.Euler(0.0f, 0.0f, 0.0f);
+                    HoloDisplayUtils.SetHologramPositionAndRotation(moon, actualPlanets[moon.name], actualPlanets[planetName]);
+                }
+
+                if (planet.name == "AshTwin")
+                {
+                    SandLevelController sandControllerAT = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
+                    GameObject ashTwinSand = planetModels["AshTwin"].transform.Find("AshTwin Sand").gameObject;
+
+                    ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
+
+                    // Make the sand stream point towards the other twin
+                    Vector3 dir = planetModels["EmberTwin"].transform.position - planetModels["AshTwin"].transform.position;
+                    Quaternion lookRot = Quaternion.LookRotation(dir, planetModels["AshTwin"].transform.up);
+
+                    Transform sandStreamFromAshTwin = planetModels["AshTwin"].transform.Find("SandColumnRoot");
+                    GameObject sandColumnScaleRoot = GameObject.Find("SandFunnel_Body/ScaleRoot");
+
+                    if (sandColumnScaleRoot != null && sandStreamFromAshTwin != null)
+                    {
+                        sandStreamFromAshTwin.localRotation = planetModels["AshTwin"].transform.InverseTransformRotation(lookRot);
+                        sandStreamFromAshTwin.localScale = sandColumnScaleRoot.transform.localScale;
                     }
                 }
+
+                if (planet.name == "EmberTwin")
+                {
+                    SandLevelController sandControllerET = actualPlanets["EmberTwin"].transform.GetComponentInChildren<SandLevelController>();
+                    GameObject emberTwinSand = planetModels["EmberTwin"].transform.Find("EmberTwin Sand").gameObject;
+
+                    emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
+                }
+
+                // Hide planets which are outside the ship's cabin
+                float mag = planet.transform.localPosition.magnitude * transform.localScale.x;
+                planet.SetActive(mag <= DISPLAY_CUTOFF_DIST && displayPowered ? true : false);
             }
 
             // Check for new meteors to add to the display
@@ -524,81 +505,18 @@ namespace ShipPlanetProjector
             // Update meteor positions
             UpdateMeteors();
 
-            if (activePlanetName == "Twins" || activePlanetName == "The Sun")
-            {
-                Transform ashTwin = planetModels["Twins"].transform.Find("AshTwin");
-                Transform emberTwin = planetModels["Twins"].transform.Find("EmberTwin");
-
-                if (ashTwin != null && emberTwin != null)
-                {
-                    HoloDisplayUtils.SetHologramPositionAndRotation(ashTwin.gameObject, actualPlanets["AshTwin"], actualPlanets["Twins"]);
-                    HoloDisplayUtils.SetHologramPositionAndRotation(emberTwin.gameObject, actualPlanets["EmberTwin"], actualPlanets["Twins"]);
-
-                    float ashSandRadius = sandControllerAT.GetRadius() * 0.030303f;
-                    ashTwinSand.transform.localScale = new Vector3(ashSandRadius, ashSandRadius, ashSandRadius);
-
-                    float emberSandRadius = sandControllerET.GetRadius() * 0.030303f * 2.0f;
-                    emberTwinSand.transform.localScale = new Vector3(emberSandRadius, emberSandRadius, emberSandRadius);
-
-                    Vector3 dir = emberTwin.transform.position - ashTwin.transform.position;
-                    Quaternion lookRot = Quaternion.LookRotation(dir, ashTwin.transform.up);
-
-                    Transform sandStreamFromAshTwin = ashTwin.transform.Find("SandColumnRoot");
-                    GameObject sandColumnScaleRoot = GameObject.Find("SandFunnel_Body/ScaleRoot");
-
-                    if (sandColumnScaleRoot != null && sandStreamFromAshTwin != null)
-                    {
-                        sandStreamFromAshTwin.localRotation = ashTwin.transform.InverseTransformRotation(lookRot);
-                        sandStreamFromAshTwin.localScale = sandColumnScaleRoot.transform.localScale;
-                    }
-                }
-            }
-
-            if (activePlanetName == "The Sun")
-            {
-                // Sun              3000
-                // Twins            
-                // Timber Hearth    450   
-                // Brittle Hollow   450
-                // Giant's Deep     1100
-                // Quantum Moon     150
-
-                // Loop through each planet model and update its position and rotation to
-                // match the actual planet's position and rotation relative to the sun
-                foreach (KeyValuePair<string, GameObject> entry in planetModels)
-                {
-                    GameObject planet = entry.Value;
-                    string planetName = entry.Key;
-
-                    // Skip the sun
-                    if (planetName == "The Sun") continue;
-
-                    planet.transform.parent = planetModels["The Sun"].transform;
-                    planet.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-
-                    HoloDisplayUtils.SetHologramPositionAndRotation(planet, actualPlanets[planetName], actualPlanets["The Sun"]);
-                }
-
-                // Check the comet is still alive
-                if (!actualPlanets["Comet"].activeInHierarchy) planetModels["Comet"].SetActive(false);
-                else planetModels["Comet"].SetActive(true);
-            }
-
             // Update the current local position of the ship relative to the planet on the display
             if (playerShipModel != null) SetShipIndicator(actualPlanets[activePlanetName]);
 
             // Run the pulse animation for the ship indicator
             if (!isAnimatingShipIndicator) StartCoroutine(AnimateShipIndicator());
-
-            // Update the rotation of the current planet
-            rotationTicker += Time.deltaTime;
         }
 
         private void CreateShipIndicator()
         {
             playerShipModel = new GameObject();
 
-            playerShipModel.transform.parent = planetModels[activePlanetName].transform;
+            playerShipModel.transform.parent = transform;
             playerShipModel.transform.localPosition = Vector3.zero;
             playerShipModel.transform.name = "Hologram Ship";
 
@@ -610,8 +528,11 @@ namespace ShipPlanetProjector
             // Create and set the material for the sphere
             shipModelIndicatorMat = new Material(Shader.Find("Standard"));
             shipModelIndicatorMat.EnableKeyword("_EMISSION");
-            shipModelIndicatorMat.SetColor("_EmissionColor", new Color(1f, 0f, 0f) * 3.0f); // Red glow (no intensity multiplier)
+            shipModelIndicatorMat.SetColor("_EmissionColor", new Color(1f, 0f, 0f) * 3.0f); // Red glow
             shipModelIndicator.GetComponent<MeshRenderer>().material = shipModelIndicatorMat;
+
+            shipModelIndicator.transform.parent = playerShipModel.transform;
+            shipModelIndicator.transform.localPosition = Vector3.zero;
 
             isAnimatingShipIndicator = false;
 
@@ -638,30 +559,50 @@ namespace ShipPlanetProjector
 
             foreach (var handle in shipTemplate.GetComponentsInChildren<StreamingMeshHandle>(true))
             {
-                if (!string.IsNullOrEmpty(handle.assetBundle)) StreamingManager.LoadStreamingAssets(handle.assetBundle);
+                if (!string.IsNullOrEmpty(handle.assetBundle))
+                {
+                    StreamingManager.LoadStreamingAssets(handle.assetBundle);
+                    assetBundles.Add(handle.assetBundle);
+                }
             }
+
+            Sector timberHearthSector = Locator.GetAstroObject(AstroObject.Name.TimberHearth).GetComponentInChildren<Sector>();
+
+            timberHearthSector.OnOccupantEnterSector += OnEnterTimberHearth;
+            timberHearthSector.OnOccupantExitSector += OnExitTimberHearth;
 
             playerShipModel = Instantiate(shipTemplate);
             playerShipModel.transform.name = "Hologram Ship";
+            playerShipModel.transform.SetParent(transform, false);
 
             // Parent the flashing indictor to the ship model and position it above the ship
             shipModelIndicator.transform.parent = playerShipModel.transform;
             shipModelIndicator.transform.localPosition = new Vector3(0.25f, 2.3988f, -1.1993f);
         }
 
+        private void OnEnterTimberHearth(SectorDetector detector)
+        {
+            // Load all the asset bundles
+            foreach (string bundle in assetBundles) StreamingManager.LoadStreamingAssets(bundle);
+        }
+
+        private void OnExitTimberHearth(SectorDetector detector)
+        {
+            // Load all the asset bundles
+            foreach (string bundle in assetBundles) StreamingManager.LoadStreamingAssets(bundle);
+        }
+
         private void SetShipIndicator(GameObject planetBody)
         {
-            playerShipModel.transform.parent = planetModels[activePlanetName].transform;
-
             // Update the ship's transform
             shipTransform = Locator.GetShipTransform();
 
             // Update the model ship's postion and rotation to match the actual ship's position and rotation relative to the selected planet
-            playerShipModel.transform.localScale = new Vector3(6.0f, 6.0f, 6.0f);
+            playerShipModel.transform.localScale = (Vector3.one * 6.0f * 0.002f) / transform.localScale.x;
             HoloDisplayUtils.SetHologramPositionAndRotation(playerShipModel, shipTransform.gameObject, planetBody);
 
             // Only display the ship if the holomap is powered
-            if (displayPowered && planetBody.activeInHierarchy)
+            if (displayPowered)
             {
                 playerShipModel.SetActive(true);
                 shipModelIndicator.SetActive(true);
@@ -671,6 +612,10 @@ namespace ShipPlanetProjector
                 playerShipModel.SetActive(false);
                 shipModelIndicator.SetActive(false);
             }
+
+            // Hide the ship indicator if it is outside the ship's cabin
+            float mag = playerShipModel.transform.localPosition.magnitude * transform.localScale.x;
+            playerShipModel.SetActive(mag <= DISPLAY_CUTOFF_DIST && displayPowered ? true : false);
         }
 
         private IEnumerator AnimateShipIndicator()
@@ -689,12 +634,8 @@ namespace ShipPlanetProjector
                 elapsedTime += Time.deltaTime;
                 float t = elapsedTime / duration;
 
-                // Get the current active planet and normalize scale
-                float activePlanetScale = planetModels[activePlanetName].transform.localScale.x;
-                float normalisedScale = 0.002f / activePlanetScale;
-
                 // Expand the sphere
-                shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * minSize * normalisedScale, Vector3.one * maxSize * normalisedScale, t);
+                shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * minSize, Vector3.one * maxSize, t);
 
                 // Wait for the next frame
                 yield return null;
@@ -707,12 +648,8 @@ namespace ShipPlanetProjector
                 elapsedTime += Time.deltaTime;
                 float t = elapsedTime / duration;
 
-                // Get the current active planet and normalize scale
-                float activePlanetScale = planetModels[activePlanetName].transform.localScale.x;
-                float normalisedScale = 0.002f / activePlanetScale;
-
                 // Shrink the sphere
-                shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * maxSize * normalisedScale, Vector3.one * minSize * normalisedScale, t);
+                shipModelIndicator.transform.localScale = Vector3.Lerp(Vector3.one * maxSize, Vector3.one * minSize, t);
 
                 // Wait for the next frame
                 yield return null;
