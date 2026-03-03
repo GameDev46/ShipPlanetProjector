@@ -1,4 +1,6 @@
-﻿using System;
+﻿using OWML.Common;
+using OWML.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,22 +22,32 @@ namespace ShipPlanetProjector
         // Used for planets with child moons
         public List<GameObject> moons = new List<GameObject>();
 
+        public static IModConsole modConsole;
+
         // Holds all the lightning generators in the scene for resizing
         private static List<CloudLightningGenerator> lightningGenerators = new List<CloudLightningGenerator>();
 
-        public static void SetupPlanet(GameObject planet, Transform planetHolder, float projectorScale)
+        private static List<MeteorLauncher> meteorLaunchers = new List<MeteorLauncher>();
+
+        public static void SetupPlanet(GameObject planet, GameObject planetHolder, GameObject fragmentHolder, float projectorScale)
         {
-            planet.transform.SetParent(planetHolder, false);
+            planet.transform.SetParent(planetHolder.transform, false);
 
             planet.transform.localPosition = Vector3.zero;
             planet.transform.localRotation = Quaternion.identity;
             planet.transform.localScale = Vector3.one;
 
+            ProjectorFragmentManager fragmentManager = fragmentHolder.AddComponent<ProjectorFragmentManager>();
+            fragmentManager.Setup(fragmentHolder, modConsole);
+
             // Check every child and update them
-            RecursiveSetupChildren(planet.transform, projectorScale);
+            RecursiveSetupChildren(planet.transform, planetHolder, fragmentManager, projectorScale);
+
+            // If no fragments were found then kill the fragment manager
+            if (fragmentManager.actualFragments.Count <= 0) DestroyImmediate(fragmentManager);
         }
 
-        private static void RecursiveSetupChildren(Transform parent, float projectorScale)
+        private static void RecursiveSetupChildren(Transform parent, GameObject planetHolder, ProjectorFragmentManager fragmentManager, float projectorScale)
         {
             foreach (Transform child in parent)
             {
@@ -80,8 +92,18 @@ namespace ShipPlanetProjector
                     lightningGenerators.Add(lightning);
                 }
 
+                if (child.TryGetComponent<ProxyBrittleHollowFragment>(out ProxyBrittleHollowFragment fragment))
+                {
+                    DetachableFragment realFragment = fragment.realObjectTransform.GetComponent<DetachableFragment>();
+
+                    fragmentManager.AddFragment(fragment.transform.gameObject, realFragment.transform.gameObject);
+
+                    // Destroy the fragment controller
+                    DestroyImmediate(fragment);
+                }
+
                 // Check the current child for children and update them (repeats until there are no more children)
-                RecursiveSetupChildren(child, projectorScale);
+                RecursiveSetupChildren(child, planetHolder, fragmentManager, projectorScale);
             }
         }
 
@@ -142,6 +164,33 @@ namespace ShipPlanetProjector
 
                 // Check the current child for children and update them (repeats until there are no more children)
                 RecursiveUpdateSettings(child, atmosphereEnabled, cometTrailsEnabled);
+            }
+        }
+
+        public static List<MeteorLauncher> FindMeteorLaunchers(GameObject planet)
+        {
+            meteorLaunchers = new List<MeteorLauncher>();
+
+            // If the planet does not exist then return an empty list
+            if (!planet?.transform) return meteorLaunchers;
+
+            // Check every child for a meteor launcher
+            RecursiveFindMeteorLaunchers(planet.transform);
+
+            // Return the found meteor launchers
+            return meteorLaunchers;
+        }
+
+        private static void RecursiveFindMeteorLaunchers(Transform parent)
+        {
+            foreach (Transform child in parent)
+            {
+                if (child.TryGetComponent<MeteorLauncher>(out MeteorLauncher launcher))
+                {
+                    meteorLaunchers.Add(launcher);
+                }
+
+                RecursiveFindMeteorLaunchers(child);
             }
         }
     }

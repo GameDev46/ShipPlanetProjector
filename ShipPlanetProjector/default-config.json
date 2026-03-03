@@ -14,7 +14,7 @@
       "tooltip": "Controls whether the atmospheres of planets are shown"
     },
     "interloperEffects": {
-      "title": "Interloper Trail",
+      "title": "Comet Trails",
       "type": "selector",
       "value": "Enabled",
       "options": [

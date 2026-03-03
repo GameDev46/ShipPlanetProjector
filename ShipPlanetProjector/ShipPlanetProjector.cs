@@ -20,9 +20,6 @@ namespace ShipPlanetProjector
     {
         public static ShipPlanetProjector Instance;
 
-        private static readonly Dictionary<string, GameObject> CachedGameObjects = new Dictionary<string, GameObject>();
-        private static readonly Dictionary<string, GameObject> CachedRootGameObjects = new Dictionary<string, GameObject>();
-
         PlanetDisplay planetDisplay;
 
         Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
@@ -93,6 +90,7 @@ namespace ShipPlanetProjector
             var distanceProxies = proxyManager.GetComponent<DistantProxyManager>()._proxies;
 
             List<GameObject> proxyGameObjects = new List<GameObject>();
+            List<bool> wasNHProxy = new List<bool>();
 
             // Format the proxies
             foreach (var distanceProxy in distanceProxies)
@@ -101,7 +99,11 @@ namespace ShipPlanetProjector
                 GameObject proxyGO = GameObject.Find(distanceProxy.proxyPrefab.name + "(Clone)");
                 ProxyBody proxy = proxyGO?.GetComponent<ProxyBody>();
 
-                if (proxy) proxyGameObjects.Add(proxyGO);
+                if (proxy)
+                {
+                    proxyGameObjects.Add(proxyGO);
+                    wasNHProxy.Add(false);
+                }
             }
 
             // Attempt to locate the NHProxy component at runtime
@@ -118,6 +120,7 @@ namespace ShipPlanetProjector
                 foreach (var proxy in allNHProxies)
                 {
                     proxyGameObjects.Add(((Component)proxy).transform.gameObject);
+                    wasNHProxy.Add(true);
                 }
             }
 
@@ -125,16 +128,19 @@ namespace ShipPlanetProjector
             planetModels = new Dictionary<string, GameObject>();
             actualPlanets = new Dictionary<string, GameObject>();
 
+            int index = -1;
+
             // Loop through all the proxies and look for the main game planets and moons
             foreach (var proxyObj in proxyGameObjects)
             {
-                // Get the proxyBody component
+                // Increase the index
+                index++;
+
+                // Get the ProxyBody component
                 ProxyBody proxy = proxyObj?.GetComponent<ProxyBody>();
 
-                // Track if the proxy was originally from NH
-                bool wasNHProxy = false;
-
                 // If there is no corresponding proxy body in the scene, then check for NHProxy
+                // This is an edge case, during testing it was never used
                 if (!proxy)
                 {
                     // If NHProxy doesn't exist then skip
@@ -166,8 +172,6 @@ namespace ShipPlanetProjector
 
                     object value = objDiameterProp.GetValue(nhProxy);
                     if (value == null) continue;
-
-                    wasNHProxy = true;
 
                     float realPlanetDiameter = (float)value;
 
@@ -201,7 +205,7 @@ namespace ShipPlanetProjector
                 proxyHDU.diameterMultiplier = 1.0f;
                 proxyHDU.moons = new List<GameObject>();
 
-                if (wasNHProxy) proxyHDU.diameterMultiplier = 2.0f;
+                if (wasNHProxy[index]) proxyHDU.diameterMultiplier = 2.0f;
 
                 // Remove the ProxyOrbiter component from any moons
                 foreach (ProxyOrbiter po in proxyModel.GetComponentsInChildren<ProxyOrbiter>())
@@ -255,8 +259,13 @@ namespace ShipPlanetProjector
                 pivotHDU.hasParentPlanet = false;
                 pivotHDU.actualPlanetDiameter = 600.0f;
 
-                planetModels["Twins"] = centerPivot;
-                actualPlanets["Twins"] = GameObject.Find("FocalBody");
+                GameObject actualPivot = GameObject.Find("FocalBody");
+
+                if (actualPivot)
+                {
+                    planetModels["Twins"] = centerPivot;
+                    actualPlanets["Twins"] = GameObject.Find("FocalBody");
+                }
             }
 
             if (planetModels.ContainsKey("TimberHearth"))

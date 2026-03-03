@@ -22,6 +22,9 @@ namespace ShipPlanetProjector
         private Dictionary<string, GameObject> planetModels = new Dictionary<string, GameObject>();
         private Dictionary<string, GameObject> actualPlanets = new Dictionary<string, GameObject>();
 
+        private GameObject fragmentHolder;
+        private GameObject meteorHolder;
+
         private InteractReceiver powerReciever;
 
         private IModConsole modConsole;
@@ -36,12 +39,6 @@ namespace ShipPlanetProjector
         private GameObject shipModelIndicator;
         private Material shipModelIndicatorMat;
         private bool isAnimatingShipIndicator = false;
-
-        private List<MeteorLauncher> meteorLaunchControllers = new List<MeteorLauncher>();
-
-        private List<GameObject> hologramMeteors = new List<GameObject>();
-        private List<GameObject> actualMeteors = new List<GameObject>();
-        private List<bool> hologramMeteorsImpacted = new List<bool>();
 
         private bool displayPowered = false;
 
@@ -61,6 +58,18 @@ namespace ShipPlanetProjector
             planetController.actualPlanets = actualPlanets;
             planetController.modConsole = modHelperConsole;
 
+            planetController.fragmentHolder = new GameObject("Fragment Holder");
+            planetController.fragmentHolder.transform.parent = go.transform;
+            planetController.fragmentHolder.transform.localPosition = Vector3.zero;
+            planetController.fragmentHolder.transform.rotation = Quaternion.identity;
+            planetController.fragmentHolder.transform.localScale = Vector3.one;
+
+            planetController.meteorHolder = new GameObject("Meteor Holder");
+            planetController.meteorHolder.transform.parent = go.transform;
+            planetController.meteorHolder.transform.localPosition = Vector3.zero;
+            planetController.meteorHolder.transform.rotation = Quaternion.identity;
+            planetController.meteorHolder.transform.localScale = Vector3.one;
+
             go.transform.position = parent.transform.position;
             go.transform.parent = parent;
 
@@ -75,6 +84,15 @@ namespace ShipPlanetProjector
 
             // Set the scale of the display based on the current focused planet
             HoloDisplayUtils.SetDisplayScale(go, planetModels[SAFE_PLANET_NAME], 0.002f);
+
+            // Setup the Brittle Hollow fragments
+            ProjectorFragmentManager.SetProjectorCutOffDistance(DISPLAY_CUTOFF_DIST);
+            ProjectorFragmentManager.SetDisplayPower(false);
+            ProjectorFragmentManager.SetFocusedPlanet(planetModels[SAFE_PLANET_NAME], actualPlanets[SAFE_PLANET_NAME], 0.002f);
+            // Setup the meteor manager
+            ProjectorMeteorManager.SetProjectorCutOffDistance(DISPLAY_CUTOFF_DIST);
+            ProjectorMeteorManager.SetDisplayPower(false);
+            ProjectorMeteorManager.SetFocusedPlanet(planetModels[SAFE_PLANET_NAME], actualPlanets[SAFE_PLANET_NAME], 0.002f);
 
             return planetController;
         }
@@ -126,7 +144,7 @@ namespace ShipPlanetProjector
                 modConsole.WriteLine("Failed to locate ship's log map", MessageType.Error);
             }
 
-            try
+            /*try
             {
                 // Try to get the volcanic moon meteor emitters
                 GameObject volcanicMoonEffects = GameObject.Find("VolcanicMoon_Body/Sector_VM/Effects_VM/");
@@ -139,10 +157,13 @@ namespace ShipPlanetProjector
             catch
             {
                 modConsole.WriteLine("Failed to locate meteor emitters", MessageType.Error);
-            }
+            }*/
 
             // Create the ship indicator
             CreateShipIndicator();
+
+            // Set the mod console in HoloDisplayUtils
+            HoloDisplayUtils.modConsole = modConsole;
 
             // Setup each planet model and parent them to the display
             foreach (KeyValuePair<string, GameObject> entry in planetModels)
@@ -150,7 +171,7 @@ namespace ShipPlanetProjector
                 GameObject planet = entry.Value;
 
                 // Setup the planet model
-                HoloDisplayUtils.SetupPlanet(planet, transform, transform.localScale.x);
+                HoloDisplayUtils.SetupPlanet(planet, transform.gameObject, fragmentHolder, transform.localScale.x);
 
                 if (entry.Key == "AshTwin")
                 {
@@ -189,36 +210,16 @@ namespace ShipPlanetProjector
                 planet.SetActive(false);
             }
 
-            if (planetModels.ContainsKey("BrittleHollow"))
+            // Locate any meteor emitted in the actual planets
+            foreach (KeyValuePair<string, GameObject> entry in actualPlanets)
             {
+                if (!actualPlanets[entry.Key]) continue;
 
-                GameObject brittleHollow = actualPlanets["BrittleHollow"];
-                GameObject whiteHole = actualPlanets["WhiteHole"];
-
-                var realFragmentsForLookup = new List<DetachableFragment>(brittleHollow.GetComponentsInChildren<DetachableFragment>());
-
-                int fragCount = 0;
-
-                foreach (var fragment in planetModels["BrittleHollow"].GetComponentsInChildren<ProxyBrittleHollowFragment>(true))
+                foreach (MeteorLauncher meteorLauncher in HoloDisplayUtils.FindMeteorLaunchers(actualPlanets[entry.Key]))
                 {
-                    var fragmentObj = fragment.gameObject.AddComponent<BrittleHollowFragmentManager>();
-                    fragmentObj.Setup(fragment, planetModels["BrittleHollow"], planetModels["WhiteHole"], modConsole);
-
-                    if (brittleHollow != null && whiteHole != null)
-                    {
-                        fragmentObj.brittleHollowBody = brittleHollow;
-                        fragmentObj.whiteHoleBody = whiteHole;
-                    }
-
-                    fragmentObj.SetRealFragment(realFragmentsForLookup.FirstOrDefault(
-                        realFragment => fragment.realFragmentName.Equals(realFragment.gameObject.name)
-                    ));
-
-                    DestroyImmediate(fragment);
-                    fragCount++;
+                    var meteorController = meteorLauncher.transform.gameObject.AddComponent<ProjectorMeteorManager>();
+                    meteorController.Setup(meteorLauncher, meteorHolder, modConsole);
                 }
-
-                modConsole.WriteLine($"Setup {fragCount} fragments", MessageType.Success);
             }
 
         }
@@ -261,7 +262,13 @@ namespace ShipPlanetProjector
                 focusedPlanet = focusedPlanet.Replace("_ShipLog", "");
 
                 // Fix some of the names to match the planet models
-                if (focusedPlanet == "CaveTwin" || focusedPlanet == "TowerTwin") focusedPlanet = "Twins";
+                if (focusedPlanet == "CaveTwin") focusedPlanet = "EmberTwin";
+                if (focusedPlanet == "TowerTwin") focusedPlanet = "AshTwin";
+
+                if (planetModels.ContainsKey("Twins")) {
+                    if (focusedPlanet == "EmberTwin" || focusedPlanet == "AshTwin") focusedPlanet = "Twins";
+                }
+                
                 if (focusedPlanet == "Interloper") focusedPlanet = "Comet";
                 if (focusedPlanet == "SunStation") focusedPlanet = "The Sun";
 
@@ -276,12 +283,21 @@ namespace ShipPlanetProjector
 
                 // Set the scale of the display based on the current focused planet
                 HoloDisplayUtils.SetDisplayScale(transform.gameObject, planetModels[activePlanetName], transform.localScale.x);
+
+                // Update the Brittle Hollow fragments
+                ProjectorFragmentManager.SetFocusedPlanet(planetModels[activePlanetName], actualPlanets[activePlanetName], transform.localScale.x);
+                // Update the meteors
+                ProjectorMeteorManager.SetFocusedPlanet(planetModels[activePlanetName], actualPlanets[activePlanetName], transform.localScale.x);
             }
         }
 
         private void ToggleDisplayPower()
         {
             displayPowered = !displayPowered;
+
+            // Update the fragement and meteor managers
+            ProjectorFragmentManager.SetDisplayPower(displayPowered);
+            ProjectorMeteorManager.SetDisplayPower(displayPowered);
 
             if (displayPowered) {
                 powerReciever.ChangePrompt("Toggle Off HoloMap");
@@ -297,115 +313,6 @@ namespace ShipPlanetProjector
             }
 
             powerReciever.ResetInteraction();
-        }
-
-        private void CheckToAddMeteors(List<MeteorController> meteorControllers)
-        {
-            //GameObject meteor = GameObject.Find("Prefab_VM_MoltenMeteor(Clone)");
-
-            foreach (MeteorController meteorCont in meteorControllers)
-            {
-
-                GameObject meteor = meteorCont.transform.gameObject;
-
-                // Check if the meteor is already being tracked
-                if (meteor.transform.name.Contains("(used)")) continue;
-                meteor.transform.name = meteor.transform.name + " (used)";
-
-                // Clone the meteor and remove all the unnecessary components
-                GameObject fakeMeteor = null;
-                Clone(ref fakeMeteor, meteor);
-
-                DestroyImmediate(fakeMeteor.transform.Find("ConstantDetectors").gameObject);
-                DestroyImmediate(fakeMeteor.transform.Find("DynamicDetector").gameObject);
-                DestroyImmediate(fakeMeteor.transform.Find("MeteorImpactLight").gameObject);
-                DestroyImmediate(fakeMeteor.transform.Find("MeteorShockLayer").gameObject);
-                DestroyImmediate(fakeMeteor.transform.Find("ImpactAudioSource").gameObject);
-
-                DestroyImmediate(fakeMeteor.transform.GetComponent<CenterOfTheUniverseOffsetApplier>());
-                DestroyImmediate(fakeMeteor.transform.GetComponent<MeteorController>());
-                DestroyImmediate(fakeMeteor.transform.GetComponent<OWRigidbody>());
-                DestroyImmediate(fakeMeteor.transform.GetComponent<Rigidbody>());
-
-                ShowGameObject(fakeMeteor);
-
-                fakeMeteor.transform.Find("MeteorGlowLight")?.GetComponent<Light>().range = 150.0f * 0.0015f;
-                fakeMeteor.transform.Find("MeteorGlowLight")?.GetComponent<Light>().intensity = 1.0f;
-
-                fakeMeteor.transform.Find("Meteor_Whole")?.gameObject.SetActive(true);
-
-                fakeMeteor.transform.parent = transform;
-
-                hologramMeteors.Add(fakeMeteor);
-                actualMeteors.Add(meteor);
-                hologramMeteorsImpacted.Add(false);
-            }
-        }
-
-        private void UpdateMeteors()
-        {
-            for (int index = 0; index < hologramMeteors.Count; index++)
-            {
-
-                if (actualMeteors[index] == null)
-                {
-                    DestroyImmediate(hologramMeteors[index]);
-
-                    string fixedName = actualMeteors[index].transform.name;
-                    fixedName = fixedName.Substring(0, fixedName.Length - 7);
-                    actualMeteors[index].transform.name = fixedName;
-
-                    actualMeteors.RemoveAt(index);
-                    hologramMeteors.RemoveAt(index);
-                    hologramMeteorsImpacted.RemoveAt(index);
-                    index--;
-
-                    continue;
-                }
-
-                MeteorController meteorController = actualMeteors[index].transform.GetComponent<MeteorController>();
-
-                Transform meteorBody = hologramMeteors[index].transform.Find("Meteor_Whole");
-                Transform meteorLight = hologramMeteors[index].transform.Find("MeteorGlowLight");
-
-                if (!meteorController.hasImpacted)
-                {
-                    if (!meteorBody.gameObject.activeInHierarchy) meteorBody.gameObject.SetActive(true);
-                    if (!meteorLight.gameObject.activeInHierarchy) meteorLight.gameObject.SetActive(true);
-                    hologramMeteorsImpacted[index] = false;
-                }
-
-                // Check if effects are active
-                if (meteorController.hasImpacted && !hologramMeteorsImpacted[index])
-                {
-                    hologramMeteorsImpacted[index] = true;
-
-                    meteorBody?.gameObject.SetActive(false);
-                    meteorLight?.gameObject.SetActive(false);
-
-                    Transform particleHolder = hologramMeteors[index].transform.Find("Effects_VM_MeteorParticles");
-
-                    List<ParticleSystem> meteorExplosionParticles = new List<ParticleSystem>(particleHolder.GetComponentsInChildren<ParticleSystem>());
-                    foreach (ParticleSystem explosionParticles in meteorExplosionParticles)
-                    {
-                        explosionParticles.transform.localScale = new Vector3(0.002f, 0.002f, 0.002f);
-                        explosionParticles.transform.gameObject.SetActive(true);
-
-                        explosionParticles.Stop();
-                        explosionParticles.time = 0.0f;
-                        explosionParticles.Play();
-                    }
-                }
-
-                // Update the hologram meteor's position and rotation to match the actual meteor
-                hologramMeteors[index].transform.localPosition = actualPlanets[activePlanetName].transform.InverseTransformPoint(actualMeteors[index].transform.position);
-                hologramMeteors[index].transform.localRotation = Quaternion.Inverse(actualPlanets[activePlanetName].transform.rotation) * actualMeteors[index].transform.rotation;
-                hologramMeteors[index].transform.localScale = Vector3.one;
-
-                // Hide meteors which are outside the ship's cabin
-                float mag = hologramMeteors[index].transform.localPosition.magnitude * transform.localScale.x;
-                hologramMeteors[index].SetActive(mag <= DISPLAY_CUTOFF_DIST && displayPowered ? true : false);
-            }
         }
 
         public void Update()
@@ -495,15 +402,6 @@ namespace ShipPlanetProjector
                 float mag = planet.transform.localPosition.magnitude * transform.localScale.x;
                 planet.SetActive(mag <= DISPLAY_CUTOFF_DIST && displayPowered ? true : false);
             }
-
-            // Check for new meteors to add to the display
-            foreach (MeteorLauncher launcher in meteorLaunchControllers)
-            {
-                CheckToAddMeteors(launcher._launchedMeteors);
-            }
-
-            // Update meteor positions
-            UpdateMeteors();
 
             // Update the current local position of the ship relative to the planet on the display
             if (playerShipModel != null) SetShipIndicator(actualPlanets[activePlanetName]);
