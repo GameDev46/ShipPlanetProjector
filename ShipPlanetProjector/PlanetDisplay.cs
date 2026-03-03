@@ -14,6 +14,7 @@ using UnityEngine;
 using UnityEngine.InputSystem.HID;
 using UnityEngine.UI;
 using static UnityEngine.GraphicsBuffer;
+using UnityEngine.SceneManagement;
 
 namespace ShipPlanetProjector
 {
@@ -144,21 +145,6 @@ namespace ShipPlanetProjector
                 modConsole.WriteLine("Failed to locate ship's log map", MessageType.Error);
             }
 
-            /*try
-            {
-                // Try to get the volcanic moon meteor emitters
-                GameObject volcanicMoonEffects = GameObject.Find("VolcanicMoon_Body/Sector_VM/Effects_VM/");
-
-                meteorLaunchControllers.Add(volcanicMoonEffects.transform.GetChild(1).GetChild(0).GetComponent<MeteorLauncher>());
-                meteorLaunchControllers.Add(volcanicMoonEffects.transform.GetChild(2).GetChild(0).GetComponent<MeteorLauncher>());
-                meteorLaunchControllers.Add(volcanicMoonEffects.transform.GetChild(3).GetChild(0).GetComponent<MeteorLauncher>());
-                meteorLaunchControllers.Add(volcanicMoonEffects.transform.GetChild(4).GetChild(0).GetComponent<MeteorLauncher>());
-            }
-            catch
-            {
-                modConsole.WriteLine("Failed to locate meteor emitters", MessageType.Error);
-            }*/
-
             // Create the ship indicator
             CreateShipIndicator();
 
@@ -175,35 +161,42 @@ namespace ShipPlanetProjector
 
                 if (entry.Key == "AshTwin")
                 {
-                    Transform ashTwinRoot = planetModels["AshTwin"].transform.Find("SandSphereRoot");
-                    Material sandMat = Instantiate(ashTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
-
-                    GameObject ashTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    ashTwinSand.name = "AshTwin Sand";
-                    ashTwinSand.transform.parent = planet.transform;
-                    ashTwinSand.transform.localPosition = Vector3.zero;
-                    ashTwinSand.GetComponent<SphereCollider>().enabled = false;
-                    //ashTwinSand.GetComponent<Renderer>().material = sandMat;
+                    //Transform ashTwinRoot = planetModels["AshTwin"].transform.Find("SandSphereRoot");
+                    //Material sandMat = Instantiate(ashTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
 
                     SandLevelController sandControllerAT = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
-                    //float ashSandRadius = sandControllerAT.GetRadius() * 0.030303f;
-                    ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
+
+                    if (sandControllerAT)
+                    {
+                        GameObject ashTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                        ashTwinSand.name = "AshTwin Sand";
+                        ashTwinSand.transform.parent = planet.transform;
+                        ashTwinSand.transform.localPosition = Vector3.zero;
+                        ashTwinSand.GetComponent<SphereCollider>().enabled = false;
+                        //ashTwinSand.GetComponent<Renderer>().material = sandMat;
+
+                        ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
+                    }
                 }
 
                 if (entry.Key == "EmberTwin")
                 {
-                    Transform emberTwinRoot = planetModels["EmberTwin"].transform.Find("SandSphereRoot");
-                    Material sandMat = Instantiate(emberTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
-
-                    GameObject emberTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    emberTwinSand.name = "EmberTwin Sand";
-                    emberTwinSand.transform.parent = planet.transform;
-                    emberTwinSand.transform.localPosition = Vector3.zero;
-                    emberTwinSand.GetComponent<SphereCollider>().enabled = false;
-                    //emberTwinSand.GetComponent<Renderer>().material = sandMat;
+                    //Transform emberTwinRoot = planetModels["EmberTwin"].transform.Find("SandSphereRoot");
+                    //Material sandMat = Instantiate(emberTwinRoot.GetChild(0).GetComponent<TessellatedSphereRenderer>()._materials[0]);
 
                     SandLevelController sandControllerET = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
-                    emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
+
+                    if (sandControllerET)
+                    {
+                        GameObject emberTwinSand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                        emberTwinSand.name = "EmberTwin Sand";
+                        emberTwinSand.transform.parent = planet.transform;
+                        emberTwinSand.transform.localPosition = Vector3.zero;
+                        emberTwinSand.GetComponent<SphereCollider>().enabled = false;
+                        //emberTwinSand.GetComponent<Renderer>().material = sandMat;
+
+                        emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
+                    }
                 }
 
                 // Disable the planet by default
@@ -258,9 +251,6 @@ namespace ShipPlanetProjector
                 ShipLogAstroObject currentLogPlanet = shipLogMode._astroObjects[selectedPlanetRow][selectedPlanetIndex];
                 string focusedPlanet = currentLogPlanet.name;
 
-                // Format (for NH)
-                focusedPlanet = focusedPlanet.Replace("_ShipLog", "");
-
                 // Fix some of the names to match the planet models
                 if (focusedPlanet == "CaveTwin") focusedPlanet = "EmberTwin";
                 if (focusedPlanet == "TowerTwin") focusedPlanet = "AshTwin";
@@ -271,6 +261,9 @@ namespace ShipPlanetProjector
                 
                 if (focusedPlanet == "Interloper") focusedPlanet = "Comet";
                 if (focusedPlanet == "SunStation") focusedPlanet = "The Sun";
+
+                // Format (for NH)
+                focusedPlanet = focusedPlanet.Replace("_ShipLog", "");
 
                 // Check that the name exists in planet models
                 if (!planetModels.ContainsKey(focusedPlanet)) return;
@@ -372,9 +365,9 @@ namespace ShipPlanetProjector
                 if (planet.name == "AshTwin")
                 {
                     SandLevelController sandControllerAT = actualPlanets["AshTwin"].transform.GetComponentInChildren<SandLevelController>();
-                    GameObject ashTwinSand = planetModels["AshTwin"].transform.Find("AshTwin Sand").gameObject;
+                    GameObject ashTwinSand = planetModels["AshTwin"].transform.Find("AshTwin Sand")?.gameObject;
 
-                    ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
+                    if (sandControllerAT != null && ashTwinSand != null) ashTwinSand.transform.localScale = Vector3.one * sandControllerAT.GetRadius() * 2.060606f;
 
                     // Make the sand stream point towards the other twin
                     Vector3 dir = planetModels["EmberTwin"].transform.position - planetModels["AshTwin"].transform.position;
@@ -383,19 +376,25 @@ namespace ShipPlanetProjector
                     Transform sandStreamFromAshTwin = planetModels["AshTwin"].transform.Find("SandColumnRoot");
                     GameObject sandColumnScaleRoot = GameObject.Find("SandFunnel_Body/ScaleRoot");
 
-                    if (sandColumnScaleRoot != null && sandStreamFromAshTwin != null)
+                    if (sandStreamFromAshTwin != null)
                     {
-                        sandStreamFromAshTwin.localRotation = planetModels["AshTwin"].transform.InverseTransformRotation(lookRot);
-                        sandStreamFromAshTwin.localScale = sandColumnScaleRoot.transform.localScale;
+                        if (sandColumnScaleRoot != null)
+                        {
+                            sandStreamFromAshTwin.localRotation = planetModels["AshTwin"].transform.InverseTransformRotation(lookRot);
+                            sandStreamFromAshTwin.localScale = sandColumnScaleRoot.transform.localScale;
+                        } else
+                        {
+                            sandStreamFromAshTwin.localScale = Vector3.zero;
+                        }
                     }
                 }
 
                 if (planet.name == "EmberTwin")
                 {
                     SandLevelController sandControllerET = actualPlanets["EmberTwin"].transform.GetComponentInChildren<SandLevelController>();
-                    GameObject emberTwinSand = planetModels["EmberTwin"].transform.Find("EmberTwin Sand").gameObject;
+                    GameObject emberTwinSand = planetModels["EmberTwin"].transform.Find("EmberTwin Sand")?.gameObject;
 
-                    emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
+                    if (sandControllerET && emberTwinSand) emberTwinSand.transform.localScale = Vector3.one * sandControllerET.GetRadius() * 2.060606f;
                 }
 
                 // Hide planets which are outside the ship's cabin
@@ -443,7 +442,7 @@ namespace ShipPlanetProjector
             yield return new WaitForSeconds(2.0f);
 
             // Locate the tree template gameobject
-            const string shipTemplatePath = "TimberHearth_Body/ModelRocket_Body/Geo_ModelRocket/Props_HEA_ModelRocket/";
+            const string shipTemplatePath = "TimberHearth_Body/ModelRocket_Body/Geo_ModelRocket/Props_HEA_ModelRocket";
             GameObject shipTemplate = GetGameObjectAtPath(shipTemplatePath);
 
             if (shipTemplate == null)
@@ -557,29 +556,39 @@ namespace ShipPlanetProjector
             isAnimatingShipIndicator = false;
         }
 
-        public GameObject GetGameObjectAtPath(string path)
+        private GameObject GetGameObjectAtPath(string path)
         {
-            string[] step_names = path.Split('/');
+            string[] stepNames = path.Split('/');
 
             // Get the first step in the path's corresponding GameObject
-            GameObject go = GameObject.Find(step_names[0]);
+            GameObject go = FindRootObject(stepNames[0]);
 
             // If the first step doesn't exist then return null
             if (go == null)
             {
-                modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {step_names[0]}", MessageType.Error);
+                modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {stepNames[0]}", MessageType.Error);
                 return null;
             }
 
             // Iterate through the remaining steps in the path and find the corresponding child GameObject at each step
-            for (int i = 1; i < step_names.Length - 1; i++)
+            for (int i = 1; i < stepNames.Length; i++)
             {
-                Transform next_step = go.transform.Find(step_names[i]);
+                Transform next_step = null;
+
+                // Check all the children for the net step
+                foreach (Transform child in go.transform)
+                {
+                    if (child.name == stepNames[i])
+                    {
+                        next_step = child;
+                        break;
+                    }
+                }
 
                 // If the next step doesn't exist then return null
                 if (next_step == null)
                 {
-                    modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {step_names[i]}", MessageType.Error);
+                    modConsole.WriteLine($"Couldn't find object at path: {path}, failed to locate {stepNames[i]}", MessageType.Error);
                     return null;
                 }
 
@@ -591,11 +600,32 @@ namespace ShipPlanetProjector
             return go;
         }
 
+        private GameObject FindRootObject(string name)
+        {
+            // Loop through each unity scene
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                // Get the current scene
+                Scene scene = SceneManager.GetSceneAt(i);
+
+                // If the scene is not loaded then skip
+                if (!scene.isLoaded) continue;
+
+                // Loop over each root component of the scene and try to find the wanted root
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    if (root.name == name) return root;
+                }
+            }
+
+            return null;
+        }
+
         // Credit to MegaPiggy for the cloning method, which allows us to clone the proxy bodies so they
         // can be used as holograms in the ship.
         // The Clone and showProxy functons are from AdvancedMinimap.cs file in the General Enhancements mod:
         // https://github.com/MegaPiggy/SBtT.GeneralEnhancements/
-        void Clone(ref GameObject field, GameObject toClone)
+        private void Clone(ref GameObject field, GameObject toClone)
         {
             toClone.gameObject.SetActive(false);
             field = Instantiate(toClone.gameObject);
@@ -605,7 +635,7 @@ namespace ShipPlanetProjector
             toClone.gameObject.SetActive(true);
         }
 
-        void ShowGameObject(GameObject obj)
+        private void ShowGameObject(GameObject obj)
         {
             var proxies = obj.GetComponentsInChildren<Transform>(true);
 

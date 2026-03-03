@@ -22,6 +22,9 @@ namespace ShipPlanetProjector
         // Used for planets with child moons
         public List<GameObject> moons = new List<GameObject>();
 
+        // Fragment management
+        public GameObject realFragment;
+
         public static IModConsole modConsole;
 
         // Holds all the lightning generators in the scene for resizing
@@ -92,14 +95,10 @@ namespace ShipPlanetProjector
                     lightningGenerators.Add(lightning);
                 }
 
-                if (child.TryGetComponent<ProxyBrittleHollowFragment>(out ProxyBrittleHollowFragment fragment))
+                if (child.TryGetComponent<HoloDisplayUtils>(out HoloDisplayUtils possibleFragment))
                 {
-                    DetachableFragment realFragment = fragment.realObjectTransform.GetComponent<DetachableFragment>();
-
-                    fragmentManager.AddFragment(fragment.transform.gameObject, realFragment.transform.gameObject);
-
-                    // Destroy the fragment controller
-                    DestroyImmediate(fragment);
+                    GameObject realFragment = possibleFragment.realFragment;
+                    if (realFragment) fragmentManager.AddFragment(possibleFragment.transform.gameObject, realFragment);
                 }
 
                 // Check the current child for children and update them (repeats until there are no more children)

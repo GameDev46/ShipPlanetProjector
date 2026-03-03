@@ -11,6 +11,7 @@ using System.Linq;
 using System.Reflection;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem.HID;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
 
@@ -194,6 +195,20 @@ namespace ShipPlanetProjector
                 // Clone the proxy model
                 GameObject proxyModel = null;
                 Clone(ref proxyModel, proxy);
+
+                // Setup the Brittle Hollow fragments before every proxy body is removed (NH made me do it here)
+                foreach (ProxyBrittleHollowFragment hf in proxyModel.GetComponentsInChildren<ProxyBrittleHollowFragment>(true))
+                {
+                    HoloDisplayUtils fragmentHDU = hf.transform.gameObject.AddComponent<HoloDisplayUtils>();
+                    fragmentHDU.realFragment = hf._realObjectTransform.gameObject;
+                }
+
+                // Remove all proxy bodies, NH really doesn't like it when you keep these!
+                // (This took me a dissapointingly long time to figure out)
+                foreach (ProxyBody pb in proxyModel.GetComponentsInChildren<ProxyBody>(true))
+                {
+                    DestroyImmediate(pb);
+                }
 
                 // Name the proxy model after the planet
                 proxyModel.name = planetName;
