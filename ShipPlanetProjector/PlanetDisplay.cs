@@ -83,8 +83,11 @@ namespace ShipPlanetProjector
                 if (SAFE_PLANET_NAME == "TimberHearth") break;
             }
 
+            // Setup the holo display utils
+            HoloDisplayUtils.SetupUtils(modHelperConsole);
+
             // Set the scale of the display based on the current focused planet
-            HoloDisplayUtils.SetDisplayScale(go, planetModels[SAFE_PLANET_NAME], 0.002f);
+            HoloDisplayUtils.SetDisplayScale(go, planetModels[SAFE_PLANET_NAME]);
 
             // Setup the Brittle Hollow fragments
             ProjectorFragmentManager.SetProjectorCutOffDistance(DISPLAY_CUTOFF_DIST);
@@ -147,9 +150,6 @@ namespace ShipPlanetProjector
 
             // Create the ship indicator
             CreateShipIndicator();
-
-            // Set the mod console in HoloDisplayUtils
-            HoloDisplayUtils.modConsole = modConsole;
 
             // Setup each planet model and parent them to the display
             foreach (KeyValuePair<string, GameObject> entry in planetModels)
@@ -275,7 +275,7 @@ namespace ShipPlanetProjector
                 activePlanetName = focusedPlanet;
 
                 // Set the scale of the display based on the current focused planet
-                HoloDisplayUtils.SetDisplayScale(transform.gameObject, planetModels[activePlanetName], transform.localScale.x);
+                HoloDisplayUtils.SetDisplayScale(transform.gameObject, planetModels[activePlanetName]);
 
                 // Update the Brittle Hollow fragments
                 ProjectorFragmentManager.SetFocusedPlanet(planetModels[activePlanetName], actualPlanets[activePlanetName], transform.localScale.x);

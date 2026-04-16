@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SocialPlatforms;
+using static MonoMod.Cil.RuntimeILReferenceBag;
 
 namespace ShipPlanetProjector
 {
@@ -18,6 +19,9 @@ namespace ShipPlanetProjector
 
         public float actualPlanetDiameter = 500.0f;
         public float diameterMultiplier = 1.0f;
+
+        public float atmosphereInnerRadius = 0.0f;
+        public float atmosphereOuterRadius = 0.0f;
 
         // Used for planets with child moons
         public List<GameObject> moons = new List<GameObject>();
@@ -32,6 +36,19 @@ namespace ShipPlanetProjector
 
         private static List<MeteorLauncher> meteorLaunchers = new List<MeteorLauncher>();
 
+        private static List<HoloDisplayUtils> atmosphereDisplayUtils = new List<HoloDisplayUtils>();
+        private static List<MeshRenderer> atmosphereRenderers = new List<MeshRenderer>();
+
+        public static void SetupUtils(IModConsole modCon)
+        {
+            lightningGenerators = new List<CloudLightningGenerator>();
+            meteorLaunchers = new List<MeteorLauncher>();
+            atmosphereDisplayUtils = new List<HoloDisplayUtils>();
+            atmosphereRenderers = new List<MeshRenderer>();
+
+            modConsole = modCon;
+        }
+
         public static void SetupPlanet(GameObject planet, GameObject planetHolder, GameObject fragmentHolder, float projectorScale)
         {
             planet.transform.SetParent(planetHolder.transform, false);
@@ -44,15 +61,24 @@ namespace ShipPlanetProjector
             fragmentManager.Setup(fragmentHolder, modConsole);
 
             // Check every child and update them
-            RecursiveSetupChildren(planet.transform, planetHolder, fragmentManager, projectorScale);
+            RecursiveSetupChildren(planet, planet, planetHolder, fragmentManager, projectorScale);
+
+            // Collect all the fragements
+            HoloDisplayUtils[] allFragments = planet.GetComponentsInChildren<HoloDisplayUtils>(true);
+
+            foreach (HoloDisplayUtils possibleFragment in allFragments)
+            {
+                GameObject realFragment = possibleFragment.realFragment;
+                if (realFragment) fragmentManager.AddFragment(possibleFragment.transform.gameObject, realFragment);
+            }
 
             // If no fragments were found then kill the fragment manager
             if (fragmentManager.actualFragments.Count <= 0) DestroyImmediate(fragmentManager);
         }
 
-        private static void RecursiveSetupChildren(Transform parent, GameObject planetHolder, ProjectorFragmentManager fragmentManager, float projectorScale)
+        private static void RecursiveSetupChildren(GameObject parent, GameObject root, GameObject planetHolder, ProjectorFragmentManager fragmentManager, float projectorScale)
         {
-            foreach (Transform child in parent)
+            foreach (Transform child in parent.transform)
             {
                 // Enable the child
                 child.gameObject.SetActive(true);
@@ -75,6 +101,29 @@ namespace ShipPlanetProjector
                         // Set the fade distances to 0 to prevent the tails being invisble when close up for comets
                         rendererMat.SetFloat("_CameraFadeDist", 0.0f);
                         rendererMat.SetFloat("_GeomFadeDist", 0.0f);
+
+                        float innerRad = 0.0f;
+                        float outerRad = 0.0f;
+
+                        if (root.gameObject.TryGetComponent<HoloDisplayUtils>(out HoloDisplayUtils holoDisplayUtils))
+                        {
+                            if (rendererMat.HasProperty("_InnerRadius") && rendererMat.HasProperty("_OuterRadius"))
+                            {
+                                holoDisplayUtils.atmosphereInnerRadius = rendererMat.GetFloat("_InnerRadius");
+                                holoDisplayUtils.atmosphereOuterRadius = rendererMat.GetFloat("_OuterRadius");
+
+                                // Scale the atmosphere to fit with the model properly
+                                innerRad = rendererMat.GetFloat("_InnerRadius");
+                                outerRad = rendererMat.GetFloat("_OuterRadius");
+
+                                atmosphereDisplayUtils.Add(holoDisplayUtils);
+                                atmosphereRenderers.Add(renderer);
+                            }
+                        }
+
+                        rendererMat.SetFloat("_InnerRadius", innerRad * projectorScale);
+                        rendererMat.SetFloat("_OuterRadius", outerRad * projectorScale);
+
                     }
                 }
 
@@ -95,18 +144,15 @@ namespace ShipPlanetProjector
                     lightningGenerators.Add(lightning);
                 }
 
-                if (child.TryGetComponent<HoloDisplayUtils>(out HoloDisplayUtils possibleFragment))
-                {
-                    GameObject realFragment = possibleFragment.realFragment;
-                    if (realFragment) fragmentManager.AddFragment(possibleFragment.transform.gameObject, realFragment);
-                }
+                if (child.name == "Terrain_Proxy_TT_Arch") child.localRotation = Quaternion.identity;
+                if (child.name == "Terrain_Proxy_TT_Base") child.localRotation = Quaternion.identity;
 
                 // Check the current child for children and update them (repeats until there are no more children)
-                RecursiveSetupChildren(child, planetHolder, fragmentManager, projectorScale);
+                RecursiveSetupChildren(child.gameObject, root, planetHolder, fragmentManager, projectorScale);
             }
         }
 
-        public static void SetDisplayScale(GameObject planetDisplay, GameObject focusedPlanet, float projectorScale)
+        public static void SetDisplayScale(GameObject planetDisplay, GameObject focusedPlanet)
         {
             HoloDisplayUtils focusedHDU = focusedPlanet.transform.GetComponent<HoloDisplayUtils>();
             planetDisplay.transform.localScale = Vector3.one * ((0.002f * 500.0f) / (focusedHDU.actualPlanetDiameter * focusedHDU.diameterMultiplier));
@@ -122,8 +168,24 @@ namespace ShipPlanetProjector
             foreach (CloudLightningGenerator lightning in lightningGenerators)
             {
                 // Scale the lighting's radius to fit the smaller display scale
-                lightning._lightRadius.min = Mathf.Min(300.0f * projectorScale, 0.45f);
-                lightning._lightRadius.max = Mathf.Min(700.0f * projectorScale, 1.05f);
+                lightning._lightRadius.min = Mathf.Min(300.0f * planetDisplay.transform.localScale.x, 0.45f);
+                lightning._lightRadius.max = Mathf.Min(700.0f * planetDisplay.transform.localScale.x, 1.05f);
+            }
+
+            for (int i = 0; i < atmosphereRenderers.Count; i++)
+            {
+                MeshRenderer atmosphereRenderer = atmosphereRenderers[i];
+                HoloDisplayUtils atmosphereHDU = atmosphereDisplayUtils[i];
+
+                // Get the child's material
+                Material rendererMat = atmosphereRenderer.material;
+
+                if (rendererMat)
+                {
+                    // Update the scale of the atmosphere to fit with the model properly
+                    rendererMat.SetFloat("_InnerRadius", atmosphereHDU.atmosphereInnerRadius * planetDisplay.transform.localScale.x);
+                    rendererMat.SetFloat("_OuterRadius", atmosphereHDU.atmosphereOuterRadius * planetDisplay.transform.localScale.x);
+                }
             }
         }
 

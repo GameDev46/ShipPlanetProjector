@@ -50,6 +50,10 @@ namespace ShipPlanetProjector
             meteorHolder = meteorParent;
             launcher = meteorLauncher;
 
+            hologramMeteors = new List<GameObject>();
+            actualMeteors = new List<GameObject>();
+            hologramMeteorsImpacted = new List<bool>();
+
             modConsole = con;
         }
 

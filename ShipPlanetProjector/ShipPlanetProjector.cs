@@ -279,7 +279,7 @@ namespace ShipPlanetProjector
                 if (actualPivot)
                 {
                     planetModels["Twins"] = centerPivot;
-                    actualPlanets["Twins"] = GameObject.Find("FocalBody");
+                    actualPlanets["Twins"] = actualPivot;
                 }
             }
 
