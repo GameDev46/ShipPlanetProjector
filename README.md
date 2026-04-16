@@ -4,9 +4,13 @@
 
 <hr>
 
+[![Install Planet Projector](https://img.shields.io/endpoint?url=https%3A%2F%2Fouterwildsmods.com%2Fapi%2FGameDev46.ShipPlanetProjector%2Fbadge.json)](https://outerwildsmods.com/mods/planetprojector/)
+
 ## Info
 
-This mod adds a holographic projection of the currently selected planet in the ship's log and a little ship model which represents your ship's current position relative to the selected body
+This mod adds a holographic projection of the currently selected planet in the ship's log and a little ship model which represents your ship's current position relative to the selected body.
+
+This mod works with [New Horizons](https://outerwildsmods.com/mods/newhorizons/) systems as well (though for complex planet structures it may struggle!)
 
 ## Credits
 
